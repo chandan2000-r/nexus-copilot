@@ -1,0 +1,37 @@
+appId: ai.nexus.desktop
+productName: Nexus AI
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+# The native capture-exclusion addon lives outside the asar archive so it can be dlopen'd.
+extraResources:
+  - from: src/native/build/Release/nexus_native.node
+    to: native/nexus_native.node
+asar: true
+mac:
+  target:
+    - target: dmg
+  category: public.app-category.productivity
+  extendInfo:
+    NSMicrophoneUsageDescription: Nexus AI transcribes your microphone when "You" is turned on.
+    NSAudioCaptureUsageDescription: Nexus AI transcribes the other side of your call from system audio.
+  # Ad-hoc signed ("-"): no Apple certificate, but the bundle is sealed so a downloaded copy is not
+  # reported as "damaged". Users still confirm once via System Settings → Privacy & Security → Open Anyway.
+  # For a real Developer ID signature + notarization, replace "-" with your identity (or set CSC_LINK /
+  # CSC_KEY_PASSWORD) and turn hardenedRuntime back on.
+  identity: "-"
+  # Must stay false while ad-hoc signed: hardened runtime's library validation rejects Electron's framework.
+  hardenedRuntime: false
+dmg:
+  artifactName: Nexus-AI-${version}-mac-${arch}.${ext}
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: Nexus-AI-Setup-${version}-${arch}.${ext}

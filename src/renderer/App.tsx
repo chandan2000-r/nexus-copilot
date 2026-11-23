@@ -1,0 +1,90 @@
+import { useEffect, useRef, useState } from 'react'
+import { AnswerView } from '../components/AnswerView'
+import { ChatInput, type ChatInputHandle } from '../components/ChatInput'
+import { ControlBar } from '../components/ControlBar'
+import { HistoryPanel } from '../components/HistoryPanel'
+import { SettingsPanel } from '../components/SettingsPanel'
+import { TitleBar, type View } from '../components/TitleBar'
+import { TranscriptPanel } from '../components/TranscriptPanel'
+import { useCopilot } from '../services/useCopilot'
+import type { CaptureStatus } from '../shared/capture'
+import type { UiCommand } from '../shared/copilot'
+import type { SecretsStatus } from '../shared/ipc'
+import type { Settings } from '../shared/settings'
+
+export function App() {
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [capture, setCapture] = useState<CaptureStatus | null>(null)
+  const [secrets, setSecrets] = useState<SecretsStatus | null>(null)
+  const [view, setView] = useState<View>('main')
+  const copilot = useCopilot(settings)
+  const input = useRef<ChatInputHandle>(null)
+
+  useEffect(() => {
+    window.nexus.getSettings().then(setSettings)
+    window.nexus.getCaptureStatus().then(setCapture)
+    window.nexus.secrets.status().then(setSecrets)
+    const offs = [window.nexus.onSettingsChanged(setSettings), window.nexus.onCaptureStatus(setCapture)]
+    return () => offs.forEach((off) => off())
+  }, [])
+
+  // Commands from global shortcuts and the tray menu.
+  const commandRef = useRef<(c: UiCommand) => void>(() => {})
+  commandRef.current = (cmd) => {
+    if (cmd === 'focus') {
+      setView('main')
+      setTimeout(() => input.current?.focus(), 0)
+    } else if (cmd === 'listen') copilot.toggleListening()
+    else if (cmd === 'answer') {
+      setView('main')
+      copilot.answer()
+    } else if (cmd === 'screen') {
+      setView('main')
+      void copilot.analyzeScreen()
+    }
+  }
+  useEffect(() => {
+    const onEvent = (e: Event) => commandRef.current((e as CustomEvent<UiCommand>).detail)
+    window.addEventListener('nexus-command', onEvent)
+    const off = window.nexus.onCommand((c) => commandRef.current(c))
+    return () => {
+      window.removeEventListener('nexus-command', onEvent)
+      off()
+    }
+  }, [])
+
+  if (!settings) return <div className="shell" />
+
+  return (
+    <div className="shell">
+      <TitleBar capture={capture} view={view} onView={setView} />
+      {view === 'settings' && (
+        <SettingsPanel settings={settings} capture={capture} secrets={secrets} onSecrets={setSecrets} onClose={() => setView('main')} />
+      )}
+      {view === 'history' && <HistoryPanel />}
+      {/* The copilot view stays mounted so listening and streaming continue behind Settings/History. */}
+      <div className="main-view" hidden={view !== 'main'}>
+        <ControlBar settings={settings} copilot={copilot} />
+        <TranscriptPanel copilot={copilot} />
+        {copilot.notice && (
+          <div className="notice" role="alert">
+            <span>{copilot.notice}</span>
+            <button className="icon-btn small" onClick={copilot.dismissNotice} aria-label="Dismiss">
+              ×
+            </button>
+          </div>
+        )}
+        <AnswerView copilot={copilot} settings={settings} secrets={secrets} onOpenSettings={() => setView('settings')} />
+        <ChatInput
+          ref={input}
+          streaming={copilot.streaming}
+          screenBusy={copilot.busy === 'screen'}
+          onSend={copilot.sendChat}
+          onStop={copilot.cancel}
+          onAnswer={copilot.answer}
+          onScreen={(t) => void copilot.analyzeScreen(t)}
+        />
+      </div>
+    </div>
+  )
+}
