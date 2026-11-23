@@ -118,6 +118,7 @@ if (!app.requestSingleInstanceLock()) {
         onError: (message) => emit({ requestId: req.requestId, type: 'error', message })
       })
     })
+    ipcMain.on(IPC.aiPrefill, (e, messages: unknown) => fromOverlay(e) && Array.isArray(messages) && ai.prefill(messages))
     ipcMain.handle(IPC.aiModels, (e, id: unknown) =>
       fromOverlay(e) && isProvider(id) ? ai.listModels(id) : { ok: false, error: 'unknown provider' }
     )

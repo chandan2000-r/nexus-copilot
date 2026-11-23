@@ -128,7 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
       openai: 'gpt-5-mini',
       anthropic: 'claude-haiku-5-5',
       gemini: 'gemini-flash-latest',
-      ollama: 'llama3.2'
+      ollama: 'qwen2.5:3b'
     },
     openaiBaseUrl: 'https://api.openai.com/v1',
     ollamaBaseUrl: 'http://127.0.0.1:11434',

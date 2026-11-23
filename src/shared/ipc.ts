@@ -21,6 +21,7 @@ export const IPC = {
   aiEvent: 'ai:event',
   aiModels: 'ai:models',
   aiTest: 'ai:test',
+  aiPrefill: 'ai:prefill',
   secretsStatus: 'secrets:status',
   secretsSet: 'secrets:set',
   mediaAccess: 'media:access',
@@ -93,6 +94,8 @@ export interface NexusBridge {
     onEvent(cb: (e: AIStreamEvent) => void): () => void
     models(provider: LlmProviderId): Promise<ModelListResult>
     test(provider: LlmProviderId): Promise<ProviderTestResult>
+    /** Local models: let the model read the start of the next request while people talk. */
+    prefill(messages: ChatMessage[]): void
   }
   secrets: {
     status(): Promise<SecretsStatus>

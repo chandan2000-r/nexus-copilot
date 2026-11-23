@@ -30,13 +30,23 @@ function tail(text: string): string {
   return sentences.slice(-2).join(' ')
 }
 
+/** Two-word questions must open with one of these: "What's Kubernetes?", "Explain polymorphism". */
+const SHORT_STARTERS = ['what', 'why', 'how', 'when', 'where', 'who', 'which', 'explain', 'define', 'describe', 'compare']
+
+/** "what is…", "what's…" (contractions), or the whole sentence ("explain"). */
+const opensWith = (s: string, words: string[]) => words.some((w) => s === w || s.startsWith(`${w} `) || s.startsWith(`${w}'`))
+const startsWithStarter = (s: string) => opensWith(s, STARTERS)
+
 export function looksLikeQuestion(text: string): boolean {
   const t = normalise(text)
-  if (t.split(' ').length < 3) return false
+  const words = t.split(' ').length
+  // Two words count only when they open like a question ("Sounds good?" or "Okay, great." do not).
+  if (words < 2) return false
+  if (words === 2) return opensWith(t.replace(/[.!?？。！]+$/, ''), SHORT_STARTERS)
   if (/[?？]/.test(t)) return true
   const end = normalise(tail(text))
   const sentences = end.split(/(?<=[.!?])\s+/)
-  if (sentences.some((s) => STARTERS.some((w) => s.startsWith(`${w} `) || s === w))) return true
+  if (sentences.some(startsWithStarter)) return true
   return PHRASES.some((p) => end.includes(p))
 }
 

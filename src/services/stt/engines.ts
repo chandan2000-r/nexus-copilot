@@ -1,7 +1,7 @@
 /** Speech-to-text backends. Segment engines get one WAV per utterance; Deepgram streams. */
 import type { Speaker, SttEvent } from '../../shared/copilot'
 import { apiError, request, trimSlash } from '../ai/http'
-import { GEMINI_BASE } from '../ai/providers/geminiProvider'
+import { GEMINI_BASE, geminiRequest } from '../ai/providers/geminiProvider'
 import { encodeWav, STT_SAMPLE_RATE } from './audio'
 import { VadSegmenter, type Segment, type VadOptions } from './vad'
 
@@ -60,13 +60,19 @@ export function whisperTranscriber(cfg: {
 }
 
 export function geminiTranscriber(cfg: { apiKey: string; model: string; language: string; baseUrl?: string }): SegmentTranscriber {
-  const model = encodeURIComponent(cfg.model.replace(/^models\//, ''))
   const lang = cfg.language && cfg.language !== 'auto' ? ` The speech is in language code "${cfg.language}".` : ''
   return async (wav, { prompt, signal }) => {
-    const res = await request('Gemini', `${cfg.baseUrl ?? GEMINI_BASE}/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.apiKey },
-      body: JSON.stringify({
+    // Transcription never needs thinking: 'fast' keeps each utterance quick, and an overloaded
+    // model falls back to the lighter one instead of dropping what was said.
+    const res = await geminiRequest({
+      label: 'Gemini transcription',
+      base: cfg.baseUrl ?? GEMINI_BASE,
+      apiKey: cfg.apiKey,
+      model: cfg.model,
+      method: 'generateContent',
+      speed: 'fast',
+      signal,
+      body: {
         contents: [
           {
             role: 'user',
@@ -82,8 +88,7 @@ export function geminiTranscriber(cfg: { apiKey: string; model: string; language
           }
         ],
         generationConfig: { temperature: 0 }
-      }),
-      signal
+      }
     })
     if (!res.ok) throw await apiError(res, 'Gemini transcription')
     const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] }

@@ -1,18 +1,70 @@
-import { apiError, readSse, request } from '../http'
-import { sendWithFallback } from '../speed'
+import type { AnswerSpeed } from '../../../shared/settings'
+import { apiError, isRetryableStatus, readSse, request } from '../http'
+import { geminiThinkingConfigs, sendWithFallback } from '../speed'
 import type { AIProvider, ChatMessage, ChatOptions, ModelInfo } from '../types'
 
 export interface GeminiConfig {
   apiKey: string
   model: string
   baseUrl?: string
-  /** `thinkingConfig` values to try, fastest first (see speed.ts). Empty = model default. */
-  thinkingConfigs?: Record<string, unknown>[]
+  /** How much the model may think before answering (see speed.ts). Unset = model default. */
+  speed?: AnswerSpeed
 }
 
 type Part = { text: string; thought?: boolean } | { inlineData: { mimeType: string; data: string } }
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+
+/** Lighter, stable model tried when the chosen one is overloaded (503 "high demand"). */
+export const GEMINI_OVERLOAD_FALLBACK = 'gemini-3.5-flash-lite'
+
+/**
+ * POSTs to `models/<model>:<method>` with the fastest thinking setting the model accepts for
+ * `speed`. If Google still reports the model overloaded after request()'s retries, tries the
+ * lighter fallback model once. Errors always describe the chosen model's failure.
+ */
+export async function geminiRequest(opts: {
+  label: string
+  base: string
+  apiKey: string
+  model: string
+  method: string
+  body: Record<string, unknown>
+  speed?: AnswerSpeed
+  signal?: AbortSignal
+}): Promise<Response> {
+  const { label, base, apiKey, body, speed, signal } = opts
+  const chosen = opts.model.replace(/^models\//, '')
+  const send = (model: string) =>
+    sendWithFallback({
+      label,
+      cacheKey: `gemini|${base}|${model}`,
+      candidates: speed ? geminiThinkingConfigs(model, speed) : [],
+      isOptionError: (msg) => /think|budget/i.test(msg),
+      send: (thinkingConfig) =>
+        request(label, `${base}/models/${encodeURIComponent(model)}:${opts.method}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify(
+            thinkingConfig
+              ? { ...body, generationConfig: { ...(body.generationConfig as object | undefined), thinkingConfig } }
+              : body
+          ),
+          signal
+        })
+    })
+  const res = await send(chosen)
+  if (res.ok || !isRetryableStatus(res.status) || !chosen.startsWith('gemini') || chosen === GEMINI_OVERLOAD_FALLBACK) return res
+  const original = await apiError(res, label)
+  try {
+    const alt = await send(GEMINI_OVERLOAD_FALLBACK)
+    if (alt.ok) return alt
+    await alt.body?.cancel().catch(() => {})
+  } catch (err) {
+    if (signal?.aborted) throw err
+  }
+  throw original
+}
 
 /** Google Gemini API (generativelanguage.googleapis.com) with SSE streaming. */
 export class GeminiProvider implements AIProvider {
@@ -42,20 +94,15 @@ export class GeminiProvider implements AIProvider {
   }
 
   async *chat(messages: ChatMessage[], options: ChatOptions): AsyncIterable<string> {
-    const model = encodeURIComponent(this.cfg.model.replace(/^models\//, ''))
-    const body = toGemini(messages)
-    const res = await sendWithFallback({
+    const res = await geminiRequest({
       label: this.name,
-      cacheKey: `gemini|${this.base}|${model}`,
-      candidates: this.cfg.thinkingConfigs ?? [],
-      isOptionError: (msg) => /think|budget/i.test(msg),
-      send: (thinkingConfig) =>
-        request(this.name, `${this.base}/models/${model}:streamGenerateContent?alt=sse`, {
-          method: 'POST',
-          headers: this.headers(),
-          body: JSON.stringify(thinkingConfig ? { ...body, generationConfig: { thinkingConfig } } : body),
-          signal: options.signal
-        })
+      base: this.base,
+      apiKey: this.cfg.apiKey,
+      model: this.cfg.model,
+      method: 'streamGenerateContent?alt=sse',
+      body: toGemini(messages),
+      speed: this.cfg.speed,
+      signal: options.signal
     })
     if (!res.ok || !res.body) throw await apiError(res, this.name)
     let produced = false

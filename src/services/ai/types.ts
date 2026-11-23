@@ -31,4 +31,6 @@ export interface AIProvider {
   listModels(signal?: AbortSignal): Promise<ModelInfo[]>
   /** Streams the assistant reply as text deltas. Must stop when `options.signal` aborts. */
   chat(messages: ChatMessage[], options: ChatOptions): AsyncIterable<string>
+  /** Local models only: process the start of the next request ahead of time (prompt caching). */
+  prefill?(messages: ChatMessage[], signal: AbortSignal): Promise<void>
 }

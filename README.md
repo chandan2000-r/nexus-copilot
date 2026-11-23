@@ -21,7 +21,7 @@ Works with Zoom, Google Meet, Microsoft Teams, Webex, and any app that plays aud
 | **Personal answers** | Resume (paste or import PDF / Markdown / text), job description, target role, company and your own instructions go into every request. The prompt forbids inventing employers, numbers or credentials that are not in your profile. |
 | **Modes and styles** | Interview, Coding interview, Meeting, Sales call, General. Answer styles: Concise, Detailed, STAR, Bullets. Answer language can be fixed or follow the question. |
 | **Screen analysis** | One shortcut screenshots the display the overlay is on (the overlay itself is excluded) and sends it to a vision model: approach, code, complexity for coding problems; key points for anything else. |
-| **Any model** | OpenAI and any OpenAI-compatible API (Groq, OpenRouter, DeepSeek, Together, LM Studio, vLLM), Anthropic Claude, Google Gemini, or local models through Ollama. "Load" fetches the provider's live model list; "Test connection" checks key + model. **Answer speed** (default: Fastest) turns down the hidden reasoning of GPT-5 / o-series and Gemini models so answers start streaming sooner. |
+| **Any model** | OpenAI and any OpenAI-compatible API (Groq, OpenRouter, DeepSeek, Together, LM Studio, vLLM), Anthropic Claude, Google Gemini, or local models through Ollama. "Load" fetches the provider's live model list; "Test connection" checks key + model. **Answer speed** (default: Fastest) turns down the hidden reasoning of GPT-5 / o-series, Gemini and local thinking models so answers start streaming sooner. Local models read the conversation ahead of time, so answers start in well under a second. |
 | **Session history** | Transcripts and answers are saved locally per session; browse, export to Markdown, or delete. |
 | **Overlay** | Frameless translucent window, always on top (non-activating panel on macOS, floats over full-screen apps and does not steal focus), opacity, display picker, remembered position, tray / menu-bar menu. |
 | **Capture exclusion** | `NSWindowSharingNone` on macOS, `WDA_EXCLUDEFROMCAPTURE` on Windows, set by a native addon and **verified by reading the value back**; live status pill. |
@@ -70,6 +70,21 @@ npm run dev      # start with hot reload
   "Them" input device.
 * Turn on **You** to transcribe your own side. Use headphones, otherwise the microphone also hears
   the other side.
+
+### Local model (no API key, nothing leaves the computer)
+
+```bash
+brew install ollama          # or download it from ollama.com
+ollama pull qwen2.5:3b       # fastest good choice for live answers on 8 GB Macs
+ollama pull gemma3:4b        # optional: lets screenshots work locally (vision)
+```
+
+In **Settings → AI** choose **Ollama (local)**, model `qwen2.5:3b`, and click **Test connection**.
+The app keeps the model loaded, gives it a fixed 8k-token context, turns thinking off
+(Answer speed: Fastest) and lets it read the transcript while people talk. When a question
+comes it only has to read the question, so answers start in about 0.3 s instead of 4–10 s
+(measured on an 8 GB M1). Screenshots go to an installed vision model automatically.
+Transcription still needs one of the engines under **Settings → Audio**.
 
 ### Try it without API keys
 

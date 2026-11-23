@@ -73,7 +73,9 @@ export async function apiError(res: Response, label: string): Promise<Error> {
         ? ' Check the model name and base URL in Settings.'
         : res.status === 429
           ? ' Rate limit or quota reached.'
-          : ''
+          : RETRY_STATUSES.has(res.status)
+            ? ' The service is overloaded or briefly unavailable (already retried). Try again in a moment, or choose another model in Settings → AI.'
+            : ''
   return new Error(`${label} error ${res.status}${detail ? `: ${detail}` : ''}.${hint}`)
 }
 
@@ -81,13 +83,44 @@ export function trimSlash(url: string): string {
   return url.trim().replace(/\/+$/, '')
 }
 
-/** Wraps fetch so network failures say which service could not be reached. */
-export async function request(label: string, url: string, init: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init)
-  } catch (err) {
-    if ((err as Error).name === 'AbortError' || init.signal?.aborted) throw err
-    const cause = (err as { cause?: { code?: string; message?: string } }).cause
-    throw new Error(`Could not reach ${label} at ${new URL(url).origin} (${cause?.code ?? cause?.message ?? (err as Error).message}).`)
+/** Temporary server-side failures ("overloaded", "unavailable") that usually succeed on a retry. 529 = Anthropic overloaded. */
+const RETRY_STATUSES = new Set([500, 502, 503, 504, 529])
+export const isRetryableStatus = (status: number) => RETRY_STATUSES.has(status)
+/** Short waits: answers are live, so a long backoff is worse than showing the error. Tests shorten them. */
+export const RETRY = { delaysMs: [500, 1_500] }
+
+function wait(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal!.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
+ * Wraps fetch so network failures say which service could not be reached, and retries
+ * temporary server errors (e.g. Gemini 503 "model is overloaded") a couple of times.
+ */
+export async function request(label: string, url: string, init: RequestInit, retryDelays = RETRY.delaysMs): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    let res: Response
+    try {
+      res = await fetch(url, init)
+    } catch (err) {
+      if ((err as Error).name === 'AbortError' || init.signal?.aborted) throw err
+      const cause = (err as { cause?: { code?: string; message?: string } }).cause
+      throw new Error(`Could not reach ${label} at ${new URL(url).origin} (${cause?.code ?? cause?.message ?? (err as Error).message}).`)
+    }
+    if (!RETRY_STATUSES.has(res.status) || attempt >= retryDelays.length) return res
+    await res.body?.cancel().catch(() => {})
+    const retryAfter = Number(res.headers.get('retry-after'))
+    await wait(retryAfter > 0 && retryAfter <= 3 ? retryAfter * 1000 : retryDelays[attempt], init.signal)
   }
 }

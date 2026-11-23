@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { trimToBudget } from '../src/services/ai/contextWindow'
-import { answerPrompt, buildMessages, formatTranscript, systemPrompt } from '../src/services/copilot/prompts'
+import { trimToBudget, windowStart } from '../src/services/ai/contextWindow'
+import {
+  answerPrompt,
+  buildMessages,
+  chatPrompt,
+  formatTranscript,
+  screenPrompt,
+  systemPrompt,
+  transcriptBlock
+} from '../src/services/copilot/prompts'
+import { isLocalModel } from '../src/shared/providers'
 import { looksLikeQuestion, questionSnippet } from '../src/services/copilot/questionDetector'
 import { DEFAULT_SETTINGS, mergeSettings } from '../src/shared/settings'
 
@@ -11,10 +20,22 @@ describe('looksLikeQuestion', () => {
     'What is the difference between a process and a thread?',
     'Great. Now, describe a time you disagreed with your manager.',
     'How would you design a URL shortener',
-    'Okay thanks for that. Why do you want to work here'
+    'Okay thanks for that. Why do you want to work here',
+    "What's Kubernetes?",
+    'Explain polymorphism',
+    'Define REST.',
+    "What's Docker used for?"
   ])('detects: %s', (q) => expect(looksLikeQuestion(q)).toBe(true))
 
-  it.each(['Okay, great.', 'Yeah', 'That makes sense, thanks for sharing that with us.', 'Let me share my screen now.'])(
+  it.each([
+    'Okay, great.',
+    'Yeah',
+    'Sounds good?',
+    'Share screen.',
+    'Thank you.',
+    'That makes sense, thanks for sharing that with us.',
+    'Let me share my screen now.'
+  ])(
     'ignores: %s',
     (q) => expect(looksLikeQuestion(q)).toBe(false)
   )
@@ -62,6 +83,30 @@ describe('prompts', () => {
     expect(msgs[3].images).toHaveLength(1)
     expect(answerPrompt('Why?', 'Them: Why?')).toContain('Live transcript')
   })
+
+  it('starts every request type with the same transcript block (local prompt cache)', () => {
+    const block = transcriptBlock('Them: What is a mutex?')
+    for (const p of [answerPrompt('What is a mutex?', 'Them: What is a mutex?'), chatPrompt('help', 'Them: What is a mutex?'), screenPrompt('', 'Them: What is a mutex?')]) {
+      expect(p.startsWith(block)).toBe(true)
+    }
+    expect(transcriptBlock('')).toBe('')
+  })
+
+  it('moves the transcript window in steps, so consecutive requests share their start', () => {
+    const line = (i: number) => ({ id: String(i), source: 'them', text: `question number ${i} about databases`, at: i }) as const
+    const lines = Array.from({ length: 200 }, (_, i) => line(i))
+    const firsts = new Set<string>()
+    for (let n = 1; n <= lines.length; n++) {
+      const t = formatTranscript(lines.slice(0, n), 600)
+      expect(t.length).toBeLessThanOrEqual(600)
+      expect(t.split('\n').at(-1)).toBe(`Them: question number ${n - 1} about databases`)
+      if (n > 30) expect(t.length).toBeGreaterThanOrEqual(400 - 40)
+      firsts.add(t.split('\n')[0])
+    }
+    // ~8,600 chars through a 600-char window with 200-char steps: ~44 distinct starts, where a
+    // plain sliding window would start somewhere new on almost every one of the 200 lines.
+    expect(firsts.size).toBeLessThanOrEqual(45)
+  })
 })
 
 describe('trimToBudget', () => {
@@ -75,6 +120,35 @@ describe('trimToBudget', () => {
     ])
     expect(out[1].images).toBeUndefined()
     expect(out[3].images).toHaveLength(1)
+  })
+
+  it('finds a stable start with steps, and the largest window without', () => {
+    expect(windowStart([10, 10, 10, 10], 25)).toBe(2)
+    expect(windowStart([10, 10, 10, 10], 100)).toBe(0)
+    expect(windowStart([10, 10, 50], 20)).toBe(2) // nothing fits: keep the newest anyway
+    // Step 20: cut points sit where the running total passes 20, 40, …
+    const starts = [4, 5, 6, 7, 8].map((n) => windowStart(Array(n).fill(10), 35, 20))
+    expect(starts).toEqual([2, 2, 4, 4, 6])
+  })
+
+  it('trims local requests in steps that keep the system prompt and a stable start', () => {
+    const turn = (i: number) => ({ role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant', content: `${i}`.padEnd(100, '.') })
+    const starts = new Set<string>()
+    for (let n = 1; n <= 60; n++) {
+      const out = trimToBudget([{ role: 'system', content: 'S'.repeat(100) }, ...Array.from({ length: n }, (_, i) => turn(i))], 1_100, true)
+      expect(out[0].content).toBe('S'.repeat(100))
+      expect(out.reduce((a, m) => a + m.content.length, 0)).toBeLessThanOrEqual(1_100)
+      starts.add(out[1].content)
+    }
+    expect(starts.size).toBeLessThanOrEqual(12)
+  })
+
+  it('treats Ollama and OpenAI-compatible servers on localhost as local', () => {
+    expect(isLocalModel({ provider: 'ollama', openaiBaseUrl: '' })).toBe(true)
+    expect(isLocalModel({ provider: 'openai', openaiBaseUrl: 'http://localhost:1234/v1' })).toBe(true)
+    expect(isLocalModel({ provider: 'openai', openaiBaseUrl: 'http://127.0.0.1:8080/v1' })).toBe(true)
+    expect(isLocalModel({ provider: 'openai', openaiBaseUrl: 'https://api.openai.com/v1' })).toBe(false)
+    expect(isLocalModel({ provider: 'gemini', openaiBaseUrl: 'http://localhost:1234/v1' })).toBe(false)
   })
 
   it('drops the oldest turns first', () => {

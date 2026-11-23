@@ -27,7 +27,8 @@ const bridge: NexusBridge = {
     cancel: (id) => ipcRenderer.send(IPC.aiCancel, id),
     onEvent: (cb) => subscribe(IPC.aiEvent, cb),
     models: (provider) => ipcRenderer.invoke(IPC.aiModels, provider),
-    test: (provider) => ipcRenderer.invoke(IPC.aiTest, provider)
+    test: (provider) => ipcRenderer.invoke(IPC.aiTest, provider),
+    prefill: (messages) => ipcRenderer.send(IPC.aiPrefill, messages)
   },
   secrets: {
     status: () => ipcRenderer.invoke(IPC.secretsStatus),

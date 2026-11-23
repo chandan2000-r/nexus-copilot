@@ -1,5 +1,5 @@
 /** Static provider metadata shared by the main process and the Settings UI. */
-import type { AnswerSpeed, LlmProviderId, SecretName, SttEngineId } from './settings'
+import type { AiSettings, AnswerSpeed, LlmProviderId, SecretName, SttEngineId } from './settings'
 
 export const ANSWER_SPEEDS: Record<AnswerSpeed, string> = {
   fast: 'Fastest (minimal thinking)',
@@ -39,7 +39,7 @@ export const LLM_PROVIDERS: Record<LlmProviderId, LlmProviderMeta> = {
     name: 'Google Gemini',
     keyName: 'gemini',
     keyOptional: false,
-    suggestedModels: ['gemini-flash-latest', 'gemini-pro-latest'],
+    suggestedModels: ['gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-pro-latest'],
     hint: 'The "-latest" aliases follow Google\'s newest release. Pin a version (load the list) if you need stable behaviour.',
     keyUrl: 'https://aistudio.google.com/apikey'
   },
@@ -47,8 +47,20 @@ export const LLM_PROVIDERS: Record<LlmProviderId, LlmProviderMeta> = {
     name: 'Ollama (local)',
     keyName: null,
     keyOptional: true,
-    suggestedModels: ['llama3.2', 'qwen3', 'gemma3'],
-    hint: 'Runs on this computer; nothing leaves the machine. Screenshots need a vision model (e.g. gemma3, llava, qwen2.5vl).'
+    suggestedModels: ['qwen2.5:3b', 'llama3.2:3b', 'gemma3:4b', 'qwen3:4b'],
+    hint: 'Runs on this computer; nothing leaves the machine. For live answers pick a 3–4B model (qwen2.5:3b is the fastest); 7B and larger need 16 GB of memory or more to keep up. The model stays loaded and reads the conversation while people talk, so answers start in under a second. Screenshots go to an installed vision model (e.g. gemma3:4b) automatically.'
+  }
+}
+
+/** True when answers come from a model on this computer: Ollama, or an OpenAI-compatible server on localhost (LM Studio, llama.cpp). */
+export function isLocalModel(ai: Pick<AiSettings, 'provider' | 'openaiBaseUrl'>): boolean {
+  if (ai.provider === 'ollama') return true
+  if (ai.provider !== 'openai') return false
+  try {
+    const host = new URL(ai.openaiBaseUrl).hostname
+    return host === 'localhost' || host === '[::1]' || host === '0.0.0.0' || /^127\./.test(host) || host.endsWith('.local')
+  } catch {
+    return false
   }
 }
 
@@ -75,8 +87,8 @@ export const STT_ENGINES: Record<SttEngineId, SttEngineMeta> = {
   gemini: {
     name: 'Google Gemini',
     keyName: 'gemini',
-    suggestedModels: ['gemini-flash-latest'],
-    hint: 'Transcribes each utterance after a short pause. Uses the Gemini key from the AI tab, so one Google key can run everything.'
+    suggestedModels: ['gemini-flash-latest', 'gemini-3.5-flash-lite'],
+    hint: 'Transcribes each utterance after a short pause. Uses the Gemini key from the AI tab, so one Google key can run everything. If Google reports high demand, gemini-3.5-flash-lite is used as a fallback.'
   }
 }
 

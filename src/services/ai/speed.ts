@@ -58,8 +58,10 @@ export async function sendWithFallback<T>(opts: {
   isOptionError: (message: string) => boolean
   send: (candidate: T | undefined) => Promise<Response>
 }): Promise<Response> {
-  const { label, cacheKey, candidates, isOptionError, send } = opts
+  const { label, candidates, isOptionError, send } = opts
   if (!candidates.length) return send(undefined)
+  // The index only means something for this exact list (it changes with the speed setting).
+  const cacheKey = `${opts.cacheKey}|${JSON.stringify(candidates)}`
   const options: (T | undefined)[] = [...candidates, undefined]
   for (let i = Math.min(accepted.get(cacheKey) ?? 0, options.length - 1); ; i++) {
     const res = await send(options[i])

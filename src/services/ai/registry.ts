@@ -4,7 +4,7 @@ import { AnthropicProvider } from './providers/anthropicProvider'
 import { GeminiProvider } from './providers/geminiProvider'
 import { OllamaProvider } from './providers/ollamaProvider'
 import { OpenAICompatibleProvider } from './providers/openaiProvider'
-import { geminiThinkingConfigs, openaiReasoningEfforts } from './speed'
+import { openaiReasoningEfforts } from './speed'
 import type { AIProvider } from './types'
 
 export type SecretLookup = (name: SecretName) => string | null
@@ -29,8 +29,8 @@ export function createProvider(id: LlmProviderId, settings: Settings, secret: Se
     case 'anthropic':
       return new AnthropicProvider({ apiKey: key!, model, maxTokens })
     case 'gemini':
-      return new GeminiProvider({ apiKey: key!, model, thinkingConfigs: geminiThinkingConfigs(model, speed) })
+      return new GeminiProvider({ apiKey: key!, model, speed })
     case 'ollama':
-      return new OllamaProvider({ baseUrl: settings.ai.ollamaBaseUrl, model, maxTokens })
+      return new OllamaProvider({ baseUrl: settings.ai.ollamaBaseUrl, model, maxTokens, speed })
   }
 }

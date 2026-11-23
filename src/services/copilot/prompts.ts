@@ -1,6 +1,7 @@
 /** Prompt construction for the copilot. Pure functions, used by the renderer. */
 import type { MessageKind, TranscriptLine } from '../../shared/copilot'
 import type { AnswerStyle, CopilotMode, CopilotSettings, ProfileSettings } from '../../shared/settings'
+import { windowStart } from '../ai/contextWindow'
 import type { ChatMessage, ImageAttachment } from '../ai/types'
 
 export const MODE_LABELS: Record<CopilotMode, string> = {
@@ -68,23 +69,34 @@ export function systemPrompt(copilot: CopilotSettings, profile: ProfileSettings)
   return parts.join('\n')
 }
 
-/** Recent transcript as "Them: …" / "You: …" lines, newest last, capped to `maxChars`. */
+/**
+ * Recent transcript as "Them: …" / "You: …" lines, newest last, capped to `maxChars`. The window
+ * start moves in steps (between 2/3 and all of `maxChars` is kept), so consecutive requests begin
+ * with the same text and local models can reuse their prompt cache.
+ */
 export function formatTranscript(lines: TranscriptLine[], maxChars = 6_000): string {
-  const out: string[] = []
-  let used = 0
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const l = `${lines[i].source === 'them' ? 'Them' : 'You'}: ${lines[i].text}`
-    used += l.length + 1
-    if (used > maxChars && out.length) break
-    out.unshift(l)
-  }
-  return out.join('\n')
+  const out = lines.map((l) => `${l.source === 'them' ? 'Them' : 'You'}: ${l.text}`)
+  const start = windowStart(
+    out.map((l) => l.length + 1),
+    maxChars,
+    Math.floor(maxChars / 3)
+  )
+  return out.slice(start).join('\n')
+}
+
+/**
+ * Opening shared by every request type. A local model processes it while people talk
+ * (useCopilot prefill), so when the question comes only the question is left to read.
+ */
+export function transcriptBlock(transcript: string): string {
+  return transcript ? `Live transcript so far (newest last):\n${transcript}\n` : ''
 }
 
 export function answerPrompt(question: string, transcript: string): string {
+  // Small local models tend to just repeat a quoted question back; saying what to write stops that.
   return [
-    transcript ? `Live transcript so far (newest last):\n${transcript}\n` : '',
-    `Respond to the latest thing "Them" said:\n"${question}"`
+    transcriptBlock(transcript),
+    `"Them" just said: "${question}"\nWrite the user's reply now. Start with the answer itself; do not repeat the question.`
   ]
     .filter(Boolean)
     .join('\n')
@@ -92,7 +104,7 @@ export function answerPrompt(question: string, transcript: string): string {
 
 export function screenPrompt(instruction: string, transcript: string): string {
   return [
-    transcript ? `Live transcript so far (newest last):\n${transcript}\n` : '',
+    transcriptBlock(transcript),
     'The attached image is a screenshot of the user\'s screen.',
     'If it shows a coding or technical problem, solve it (approach, code in a fenced block, complexity). ' +
       'If it shows a question, slide, document or error, explain the key points and what the user should say or do next.',
@@ -104,7 +116,7 @@ export function screenPrompt(instruction: string, transcript: string): string {
 
 export function chatPrompt(text: string, transcript: string): string {
   if (!transcript) return text
-  return `Live transcript so far (newest last), for context:\n${transcript}\n\nThe user asks: ${text}`
+  return `${transcriptBlock(transcript)}\nThe user asks: ${text}`
 }
 
 export interface HistoryItem {

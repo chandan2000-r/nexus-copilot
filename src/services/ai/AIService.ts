@@ -1,8 +1,16 @@
 import type { ModelListResult, ProviderTestResult } from '../../shared/ipc'
+import { isLocalModel } from '../../shared/providers'
 import type { LlmProviderId, Settings } from '../../shared/settings'
-import { trimToBudget } from './contextWindow'
+import { LOCAL_BUDGET_CHARS, trimToBudget } from './contextWindow'
 import { createProvider, type SecretLookup } from './registry'
 import type { ChatMessage } from './types'
+
+/** A repeated identical prefill is skipped unless this long has passed (the model may have been unloaded). */
+const PREFILL_REFRESH_MS = 20 * 60_000
+
+/** Local models get a smaller budget that keeps its start stable (prompt cache). */
+const fitToModel = (s: Settings, messages: ChatMessage[]) =>
+  isLocalModel(s.ai) ? trimToBudget(messages, LOCAL_BUDGET_CHARS, true) : trimToBudget(messages)
 
 export interface StreamHandlers {
   onDelta(text: string): void
@@ -16,6 +24,9 @@ export interface StreamHandlers {
  */
 export class AIService {
   private inflight = new Map<string, AbortController>()
+  private prefillNext: ChatMessage[] | null = null
+  private prefillRunning = false
+  private lastPrefill = { key: '', at: 0 }
 
   constructor(
     private readonly settings: () => Settings,
@@ -25,10 +36,11 @@ export class AIService {
   async send(requestId: string, messages: ChatMessage[], handlers: StreamHandlers): Promise<void> {
     const controller = new AbortController()
     this.inflight.set(requestId, controller)
+    this.prefillNext = null
     try {
       const s = this.settings()
       const provider = createProvider(s.ai.provider, s, this.secret)
-      for await (const delta of provider.chat(trimToBudget(messages), { signal: controller.signal })) {
+      for await (const delta of provider.chat(fitToModel(s, messages), { signal: controller.signal })) {
         if (controller.signal.aborted) break
         handlers.onDelta(delta)
       }
@@ -38,6 +50,42 @@ export class AIService {
       else handlers.onError((err as Error).message)
     } finally {
       this.inflight.delete(requestId)
+    }
+  }
+
+  /**
+   * Local models: process the start of the next request in the background (see useCopilot), so
+   * the answer only waits for the question itself. One at a time; a newer call replaces a queued
+   * one, and nothing is sent while an answer is streaming. Best effort: errors show up on the
+   * real request instead.
+   */
+  prefill(messages: ChatMessage[]): void {
+    this.prefillNext = messages
+    if (!this.prefillRunning) void this.runPrefills()
+  }
+
+  private async runPrefills(): Promise<void> {
+    this.prefillRunning = true
+    try {
+      for (let msgs = this.prefillNext; msgs; msgs = this.prefillNext) {
+        this.prefillNext = null
+        if (this.inflight.size) continue
+        try {
+          const s = this.settings()
+          if (!isLocalModel(s.ai)) continue
+          const provider = createProvider(s.ai.provider, s, this.secret)
+          if (!provider.prefill) continue
+          const fitted = fitToModel(s, msgs)
+          const key = JSON.stringify([s.ai.provider, s.ai.models[s.ai.provider], s.ai.ollamaBaseUrl, s.ai.speed, fitted])
+          if (key === this.lastPrefill.key && Date.now() - this.lastPrefill.at < PREFILL_REFRESH_MS) continue
+          await provider.prefill(fitted, AbortSignal.timeout(120_000))
+          this.lastPrefill = { key, at: Date.now() }
+        } catch {
+          /* best effort */
+        }
+      }
+    } finally {
+      this.prefillRunning = false
     }
   }
 

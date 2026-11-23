@@ -65,10 +65,10 @@ export function AiTab({ settings, secrets, onSecrets, update }: Props) {
         onCommit={(v) => update({ ai: { models: { [id]: v } } })}
         load={() => window.nexus.ai.models(id)}
       />
-      {(id === 'openai' || id === 'gemini') && (
+      {(id === 'openai' || id === 'gemini' || id === 'ollama') && (
         <Row
           label="Answer speed"
-          hint="How long GPT-5 / o-series and Gemini models think before answering. Fastest suits live questions; Thorough helps on hard coding problems."
+          hint="How long thinking models (GPT-5 / o-series, Gemini, and local Qwen3 / DeepSeek-R1 / gpt-oss) think before answering. Fastest suits live questions; Thorough helps on hard coding problems."
         >
           <select value={settings.ai.speed} onChange={(e) => update({ ai: { speed: e.target.value as AnswerSpeed } })}>
             {(Object.keys(ANSWER_SPEEDS) as AnswerSpeed[]).map((s) => (

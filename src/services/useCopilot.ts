@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AudioPump, openSource } from '../renderer/audio/capture'
 import type { MessageKind, SessionRecord, Speaker, SttEvent, TranscriptLine } from '../shared/copilot'
+import { isLocalModel } from '../shared/providers'
 import type { Settings } from '../shared/settings'
 import type { ImageAttachment } from './ai/types'
 import {
@@ -13,7 +14,8 @@ import {
   chatPrompt,
   formatTranscript,
   screenPrompt,
-  systemPrompt
+  systemPrompt,
+  transcriptBlock
 } from './copilot/prompts'
 import { looksLikeQuestion, questionSnippet } from './copilot/questionDetector'
 
@@ -38,6 +40,8 @@ const AUTO_ANSWER_DELAY_MS = 1_100
 /** Shorter pause when they clearly ended on a question; a follow-up still replaces the answer. */
 const AUTO_ANSWER_QUESTION_DELAY_MS = 350
 const SAVE_DEBOUNCE_MS = 1_500
+/** Quiet time before a local model is handed the latest transcript to read ahead. */
+const PREFILL_DELAY_MS = 600
 const MAX_PENDING = 1_500
 
 const newId = () => crypto.randomUUID()
@@ -187,6 +191,18 @@ export function useCopilot(settings: Settings | null) {
     }, /[?？]\s*$/.test(pendingThem.current) ? AUTO_ANSWER_QUESTION_DELAY_MS : AUTO_ANSWER_DELAY_MS)
   }, [answer])
 
+  /**
+   * Whose questions get answered. Normally the other side's. With nobody else in the conversation
+   * ("Them" is off, or nothing heard from them yet, e.g. trying the app alone or an in-person
+   * interview through the microphone) your own spoken questions are answered too. The first words
+   * from "Them" switch that off, so in a call your speech counts as you answering.
+   */
+  const asksQuestions = useCallback(
+    (source: Speaker) =>
+      source === 'them' || !settingsRef.current?.stt.captureThem || !transcriptRef.current.some((l) => l.source === 'them'),
+    []
+  )
+
   useEffect(
     () =>
       window.nexus.stt.onEvent((ev: SttEvent) => {
@@ -194,7 +210,7 @@ export function useCopilot(settings: Settings | null) {
           case 'final':
             setTranscript((t) => [...t, ev.line].sort((a, b) => a.at - b.at))
             setPartials((p) => ({ ...p, [ev.source]: '' }))
-            if (ev.source === 'them') {
+            if (asksQuestions(ev.source)) {
               pendingThem.current = `${pendingThem.current} ${ev.line.text}`.trim().slice(-MAX_PENDING)
               scheduleAutoAnswer()
             } else {
@@ -205,11 +221,11 @@ export function useCopilot(settings: Settings | null) {
             break
           case 'partial':
             setPartials((p) => ({ ...p, [ev.source]: ev.text }))
-            if (ev.source === 'them' && ev.text && autoTimer.current) clearTimeout(autoTimer.current)
+            if (asksQuestions(ev.source) && ev.text && autoTimer.current) clearTimeout(autoTimer.current)
             break
           case 'speech':
             setSpeaking((s) => ({ ...s, [ev.source]: ev.speaking }))
-            if (ev.source === 'them' && ev.speaking && autoTimer.current) clearTimeout(autoTimer.current)
+            if (asksQuestions(ev.source) && ev.speaking && autoTimer.current) clearTimeout(autoTimer.current)
             break
           case 'error':
             setNotice(`${ev.source === 'them' ? 'Them' : 'You'}: ${ev.message}`)
@@ -218,7 +234,7 @@ export function useCopilot(settings: Settings | null) {
             break
         }
       }),
-    [scheduleAutoAnswer, setTranscript]
+    [asksQuestions, scheduleAutoAnswer, setTranscript]
   )
 
   const stopSource = useCallback(async (source: Speaker) => {
@@ -314,6 +330,25 @@ export function useCopilot(settings: Settings | null) {
   )
 
   useEffect(() => () => void stopListening(), [stopListening])
+
+  // ---------- Local model read-ahead ----------
+  // A model on this computer reads the whole prompt before its first word: seconds for a long
+  // transcript. While people talk, hand it everything the next request will start with (system
+  // prompt, earlier turns, transcript), so when a question comes only the question is new.
+  useEffect(() => {
+    if (!settings || !isLocalModel(settings.ai) || streaming) return
+    const t = setTimeout(() => {
+      const prefix = transcriptBlock(transcriptText())
+      // A placeholder for the next question, so earlier turns are built as the next request will build them.
+      const msgs = buildMessages(systemPrompt(settings.copilot, settings.profile), [
+        ...messagesRef.current,
+        { role: 'user', kind: 'answer', content: '', prompt: prefix }
+      ])
+      if (!prefix) msgs.pop()
+      window.nexus.ai.prefill(msgs)
+    }, PREFILL_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [settings, transcript, messages, streaming, startedAt])
 
   // ---------- Sessions ----------
   const record = useCallback((): SessionRecord | null => {
