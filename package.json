@@ -13,8 +13,8 @@
     "start": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "npm run typecheck && npm run build:native && electron-vite build",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never",
     "postinstall": "npm run build:native",
     "test": "vitest run",
     "test:e2e": "npm run build && node scripts/e2e.mjs"
