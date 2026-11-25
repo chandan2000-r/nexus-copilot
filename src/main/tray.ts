@@ -28,6 +28,7 @@ function trayIcon() {
 
 export interface TrayHandlers {
   setCaptureExclusion(on: boolean): void
+  setHideActivity(on: boolean): void
   quit(): void
 }
 
@@ -58,6 +59,12 @@ export class AppTray {
           type: 'checkbox',
           checked: settings.captureExclusion,
           click: (item) => this.handlers.setCaptureExclusion(item.checked)
+        },
+        {
+          label: 'Keep Out of Recent Activity',
+          type: 'checkbox',
+          checked: settings.hideActivity,
+          click: (item) => this.handlers.setHideActivity(item.checked)
         },
         { type: 'separator' },
         { label: 'Quit Nexus AI', click: () => this.handlers.quit() }

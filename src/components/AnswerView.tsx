@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ANSWER_MODE_LABELS, STYLE_LABELS } from '../services/copilot/prompts'
+import { ANSWER_MODE_LABELS, STYLE_LABELS, tidyAnswer } from '../services/copilot/prompts'
 import type { Copilot, UiMessage } from '../services/useCopilot'
 import { ANSWER_VERSIONS, type AnswerVersion } from '../shared/copilot'
 import type { SecretsStatus } from '../shared/ipc'
@@ -52,7 +52,7 @@ function AssistantTurn({ m, asked, live, copilot, settings }: TurnProps) {
   return (
     <div className="msg assistant">
       <div className="answer">
-        {m.content ? <Markdown text={m.content} /> : !m.error && <span className="thinking">Thinking…</span>}
+        {m.content ? <Markdown text={tidyAnswer(m.content)} /> : !m.error && <span className="thinking">Thinking…</span>}
         {live && m.content && <span className="caret" />}
         {m.error && <div className="chat-error">{m.error}</div>}
         {(m.content || m.error) && (
@@ -112,7 +112,7 @@ function AssistantTurn({ m, asked, live, copilot, settings }: TurnProps) {
                   {reading ? <StopIcon width={13} height={13} /> : <SpeakerIcon width={13} height={13} />}
                 </button>
               )}
-              {!live && m.content && <CopyButton text={m.content} label="Copy answer" />}
+              {!live && m.content && <CopyButton text={tidyAnswer(m.content)} label="Copy answer" />}
             </div>
           </div>
         )}

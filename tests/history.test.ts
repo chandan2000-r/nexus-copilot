@@ -76,3 +76,16 @@ describe('read aloud', () => {
     )
   })
 })
+
+describe('tidy answers', () => {
+  it('drops copied instruction labels but keeps the content', async () => {
+    const { tidyAnswer } = await import('../src/services/copilot/prompts')
+    expect(tidyAnswer('Answer:\nWhen I was at Walmart…')).toBe('When I was at Walmart…')
+    expect(tidyAnswer('**Answer:**\nGit rebase replays commits.')).toBe('Git rebase replays commits.')
+    expect(tidyAnswer('The precise, correct answer in one sentence: Locking prevents concurrent writes.')).toBe(
+      'Locking prevents concurrent writes.'
+    )
+    expect(tidyAnswer('Intro line.\n\n**Answer:**\nDetails.')).toBe('Intro line.\n\nDetails.')
+    expect(tidyAnswer('The answer depends on the load: use a queue.')).toBe('The answer depends on the load: use a queue.')
+  })
+})

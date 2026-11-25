@@ -38,7 +38,8 @@ const ROLE: Record<CopilotMode, string> = {
 
 const STYLE: Record<AnswerStyle, string> = {
   concise: 'Keep it short: 2–4 sentences, or up to 4 short bullets. It must be readable at a glance in about 10 seconds.',
-  detailed: 'Give a complete answer of up to about 150 words, then 2–3 short bullets the user can use for follow-up questions.',
+  detailed:
+    'Give a complete, technical answer of about 120–220 words: precise terms, how it works under the hood, the key trade-off or failure mode, and exact commands, configuration or code in fenced code blocks when they help.',
   star:
     'For behavioural questions use STAR: **Situation**, **Task**, **Action**, **Result**, one or two sentences each, with a measurable result where the profile supports it. For other questions be concise.',
   bullets: 'Answer only in bullet points: at most 6 bullets, each under 15 words.'
@@ -102,7 +103,7 @@ const ANSWER_SHAPE: Record<AnswerStyle, string> = {
   concise:
     "Write the user's reply now, as they would say it: the answer in the first sentence, then two or three sentences on how it works, with a concrete example.",
   detailed:
-    "Write the user's reply now, as they would say it: the answer in the first sentence, then how it works, the key trade-off, and a concrete example.",
+    "Write the user's reply now. Open with the direct answer, then explain how it works under the hood (name the exact components, commands, settings or APIs), the key trade-off or failure mode, and a concrete example; put any command, configuration or code in a fenced code block. No labels such as 'Answer:' or 'The answer in one sentence:'.",
   star: "Write the user's reply now, as they would say it: for a behavioural question a short STAR story; otherwise the answer in the first sentence, then how it works, with a concrete example.",
   bullets:
     "Write the user's reply now as 3 to 5 short bullet points to glance at while speaking: the answer first, then how it works, then a concrete example. For a question about the user, the points are their own answer in the first person."
@@ -211,3 +212,15 @@ export function buildMessages(system: string, history: HistoryItem[]): ChatMessa
   })
   return msgs
 }
+
+/**
+ * Removes the scaffolding small models copy from the instructions into the answer: a leading
+ * "Answer:" / "The precise, correct answer in one sentence:" and lines that are only such a label.
+ */
+export function tidyAnswer(text: string): string {
+  const label = /(?:\*\*)?(?:answer|the (?:direct |precise(?:, correct)? )?answer(?: in (?:one|the first) sentence)?)\s*:(?:\*\*)?/i
+  return text
+    .replace(new RegExp(`^\\s*${label.source}[ \\t]*\\n?`, 'i'), '')
+    .replace(new RegExp(`^[ \\t]*${label.source}[ \\t]*$\\n?`, 'gim'), '')
+}
+

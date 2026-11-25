@@ -58,7 +58,7 @@ export function sanitize(raw: Partial<Settings>): Settings {
   for (const k of Object.keys(d.shortcuts) as (keyof Settings['shortcuts'])[]) {
     s.shortcuts[k] = str(s.shortcuts[k], d.shortcuts[k], 100)
   }
-  for (const k of ['alwaysOnTop', 'captureExclusion', 'launchAtLogin', 'startHidden', 'rememberPosition'] as const) {
+  for (const k of ['alwaysOnTop', 'captureExclusion', 'hideActivity', 'launchAtLogin', 'startHidden', 'rememberPosition'] as const) {
     s[k] = typeof s[k] === 'boolean' ? s[k] : d[k]
   }
   return s

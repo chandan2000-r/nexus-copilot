@@ -92,6 +92,11 @@ export interface Settings {
   accountServer: string
   alwaysOnTop: boolean
   captureExclusion: boolean
+  /**
+   * Keep the app out of recent activity: no Dock icon / Cmd+Tab entry / Dock recent apps on
+   * macOS, no taskbar button on Windows, and its recent-documents list cleared.
+   */
+  hideActivity: boolean
   /** 0.3 – 1.0 */
   opacity: number
   shortcuts: ShortcutSettings
@@ -116,6 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accountServer: DEFAULT_ACCOUNT_SERVER,
   alwaysOnTop: true,
   captureExclusion: true,
+  hideActivity: true,
   opacity: 0.96,
   shortcuts: {
     toggleWindow: 'CommandOrControl+Shift+Space',
@@ -158,7 +164,7 @@ export const DEFAULT_SETTINGS: Settings = {
   copilot: {
     mode: 'interview',
     autoAnswer: true,
-    answerStyle: 'concise',
+    answerStyle: 'detailed',
     responseLanguage: '',
     saveSessions: true
   },

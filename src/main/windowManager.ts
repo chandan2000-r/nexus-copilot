@@ -1,4 +1,4 @@
-import { BrowserWindow, type Display, type Rectangle, screen } from 'electron'
+import { app, BrowserWindow, type Display, type Rectangle, screen } from 'electron'
 import { join } from 'node:path'
 import type { DisplayInfo } from '../shared/ipc'
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH, type Settings } from '../shared/settings'
@@ -35,6 +35,23 @@ function initialBounds(s: Settings): Rectangle {
   const display =
     screen.getAllDisplays().find((d) => d.id === s.displayId) ?? screen.getPrimaryDisplay()
   return placeOnDisplay(display, width, height)
+}
+
+/**
+ * Keeps the app out of recent activity, or brings it back. macOS: an "accessory" app has no Dock
+ * icon, so it is not in the Dock, the Dock's recent apps or the Cmd+Tab switcher (the menu-bar
+ * icon and the shortcuts still open it). Windows: no taskbar button. The OS's own record that
+ * the app was launched is left alone.
+ */
+export function applyActivityPrivacy(win: BrowserWindow | null, hide: boolean): void {
+  if (isMac) {
+    const visible = !!win && !win.isDestroyed() && win.isVisible()
+    app.setActivationPolicy(hide ? 'accessory' : 'regular')
+    // Changing the policy can hide the app's windows; keep the overlay where it was.
+    if (visible) win!.showInactive()
+  } else if (win && !win.isDestroyed()) {
+    win.setSkipTaskbar(hide)
+  }
 }
 
 export function createOverlayWindow(store: SettingsStore): BrowserWindow {

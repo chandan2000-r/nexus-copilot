@@ -1,7 +1,7 @@
 {
   "name": "nexus-ai",
   "productName": "Nexus AI",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Private floating desktop assistant that is excluded from supported screen captures.",
   "main": "./out/main/index.js",
   "author": "Nexus AI",

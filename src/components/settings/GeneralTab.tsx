@@ -69,6 +69,16 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
         checked={settings.captureExclusion}
         onChange={(v) => update({ captureExclusion: v })}
       />
+      <Toggle
+        label="Keep out of recent activity"
+        hint={
+          window.nexus.platform === 'darwin'
+            ? 'No Dock icon, so Nexus is not in the Dock, its recent apps or Cmd+Tab; open it from the menu-bar icon or the shortcut. Minimise hides the window. Files you import or export are not added to recent items.'
+            : 'No taskbar button; minimise hides the window. Files you import or export are kept out of Recent items.'
+        }
+        checked={settings.hideActivity}
+        onChange={(v) => update({ hideActivity: v })}
+      />
 
       <h2>Window</h2>
       <Toggle label="Always on top" checked={settings.alwaysOnTop} onChange={(v) => update({ alwaysOnTop: v })} />

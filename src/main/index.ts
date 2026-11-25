@@ -30,6 +30,7 @@ import { importProfileFile } from './profileImport'
 import { registerShortcuts, shortcutStatus } from './shortcuts'
 import { AppTray } from './tray'
 import {
+  applyActivityPrivacy,
   applyAlwaysOnTop,
   createOverlayWindow,
   listDisplays,
@@ -81,6 +82,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (JSON.stringify(next.shortcuts) !== JSON.stringify(prev.shortcuts)) registerShortcuts(win, next.shortcuts)
     if (next.launchAtLogin !== prev.launchAtLogin) applyLoginItem(next)
+    if (next.hideActivity !== prev.hideActivity) applyActivityPrivacy(win, next.hideActivity)
     if (next.accountServer !== prev.accountServer) account.serverChanged()
     tray?.update(next)
     win.webContents.send(IPC.settingsChanged, next)
@@ -95,7 +97,9 @@ if (!app.requestSingleInstanceLock()) {
     const res = await dialog.showSaveDialog({
       title: 'Export session',
       defaultPath: `nexus-session-${day}.md`,
-      filters: [{ name: 'Markdown', extensions: ['md'] }]
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+      // Windows: keep the export out of Recent items.
+      properties: ['createDirectory', 'showOverwriteConfirmation', 'dontAddToRecent']
     })
     if (res.canceled || !res.filePath) return false
     await writeFile(res.filePath, sessionToMarkdown(rec), 'utf8')
@@ -112,7 +116,9 @@ if (!app.requestSingleInstanceLock()) {
       if (fromOverlay(e) && win && moveToDisplay(win, id)) store.set({ displayId: id })
     })
     ipcMain.on(IPC.windowHide, (e) => fromOverlay(e) && win?.hide())
-    ipcMain.on(IPC.windowMinimize, (e) => fromOverlay(e) && win?.minimize())
+    // Kept out of recent activity, a minimised window would still sit in the Dock / taskbar: hide it
+    // instead (the shortcut or the menu-bar / tray icon brings it back).
+    ipcMain.on(IPC.windowMinimize, (e) => fromOverlay(e) && (store.get().hideActivity ? win?.hide() : win?.minimize()))
     ipcMain.on(IPC.windowClose, (e) => fromOverlay(e) && app.quit())
     ipcMain.on(IPC.copyText, (e, text: unknown) => fromOverlay(e) && typeof text === 'string' && clipboard.writeText(text))
 
@@ -234,7 +240,11 @@ if (!app.requestSingleInstanceLock()) {
     )
     const settings = store.get()
 
+    // Nothing from this app in the macOS recent-documents list (it never adds to it; this clears
+    // anything from older versions). On Windows the same call would clear the whole user's list.
+    if (process.platform === 'darwin') app.clearRecentDocuments()
     win = createOverlayWindow(store)
+    applyActivityPrivacy(win, settings.hideActivity)
     guard = new CaptureGuard(win)
     // Exclude from capture before the window is ever shown.
     guard.apply(settings.captureExclusion)
@@ -246,6 +256,7 @@ if (!app.requestSingleInstanceLock()) {
 
     tray = new AppTray(win, {
       setCaptureExclusion: (on) => updateSettings({ captureExclusion: on }),
+      setHideActivity: (on) => updateSettings({ hideActivity: on }),
       quit: () => app.quit()
     })
     tray.update(settings)

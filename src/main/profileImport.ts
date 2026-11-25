@@ -33,7 +33,8 @@ export async function importProfileFile(win: BrowserWindow): Promise<ImportedFil
   if (process.platform === 'darwin') app.focus({ steal: true })
   const res = await dialog.showOpenDialog(process.platform === 'darwin' ? (undefined as unknown as BrowserWindow) : win, {
     title: 'Import resume or notes',
-    properties: ['openFile'],
+    // Windows: keep the imported file out of Recent items.
+    properties: ['openFile', 'dontAddToRecent'],
     filters: [{ name: 'PDF, Markdown or text', extensions: ['pdf', 'md', 'markdown', 'txt'] }]
   })
   if (res.canceled || !res.filePaths[0]) return null
