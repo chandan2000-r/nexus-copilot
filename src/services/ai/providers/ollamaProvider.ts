@@ -17,6 +17,11 @@ export const OLLAMA_KEEP_ALIVE = '30m'
  * LOCAL_BUDGET_CHARS). It must be the same on every call, or Ollama reloads the model.
  */
 export const OLLAMA_NUM_CTX = 8192
+/**
+ * Small local models drift (mixing in an earlier answer, inventing details) at their default
+ * temperature (~0.7–0.8). 0.2 keeps live answers on the question; measured on qwen2.5:3b.
+ */
+export const OLLAMA_TEMPERATURE = 0.2
 
 /** `think` values to try, fastest first; empty = model default. Models that never think accept `false`. */
 export function ollamaThinkValues(model: string, speed: AnswerSpeed = 'fast'): (boolean | string)[] {
@@ -94,7 +99,7 @@ export class OllamaProvider implements AIProvider {
             stream,
             keep_alive: OLLAMA_KEEP_ALIVE,
             ...(think === undefined ? {} : { think }),
-            options: { num_ctx: OLLAMA_NUM_CTX, num_predict: numPredict },
+            options: { num_ctx: OLLAMA_NUM_CTX, num_predict: numPredict, temperature: OLLAMA_TEMPERATURE },
             messages: messages.map((m) => ({
               role: m.role,
               content: m.content,

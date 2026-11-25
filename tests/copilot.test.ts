@@ -170,3 +170,41 @@ describe('mergeSettings', () => {
     expect(s.stt.engine).toBe(DEFAULT_SETTINGS.stt.engine)
   })
 })
+
+describe('auto-answer timing', () => {
+  it('answers fast after a question, a little later after an unpunctuated one', async () => {
+    const { autoAnswerDelay } = await import('../src/services/useCopilot')
+    expect(autoAnswerDelay('What is Docker?')).toBeLessThanOrEqual(150)
+    expect(autoAnswerDelay('Explain how Kafka guarantees message ordering.')).toBeLessThan(500)
+    expect(autoAnswerDelay('Okay, thanks for that.')).toBeGreaterThan(1_000)
+  })
+})
+
+describe('answer shape', () => {
+  it('follows the answer style and asks for more than a bare one-liner', () => {
+    const spoken = answerPrompt('How does HTTPS keep data secure?', 'You: How does HTTPS keep data secure?')
+    expect(spoken).toMatch(/"Them" just said: "How does HTTPS keep data secure\?"/)
+    expect(spoken).toMatch(/answer in the first sentence, then two or three sentences on how it works, with a concrete example/)
+    expect(spoken).toMatch(/Do not repeat the question\.$/)
+    expect(answerPrompt('Why?', '', 'bullets')).toMatch(/3 to 5 short bullet points/)
+    expect(answerPrompt('Why?', '', 'star')).toMatch(/STAR story/)
+  })
+})
+
+describe('latest question', () => {
+  it('answers the newest question, not earlier remarks', async () => {
+    const { latestQuestion } = await import('../src/services/copilot/questionDetector')
+    expect(
+      latestQuestion('Yeah we can create a VPC with separate subnets for the public and private subnets. Can you provide a Python script for the log rotation?')
+    ).toBe('Can you provide a Python script for the log rotation?')
+    expect(latestQuestion('Write a Python script for log rotation. Please write.')).toBe('Write a Python script for log rotation. Please write.')
+    expect(latestQuestion("Maybe I don't know. What should I have to do after?")).toBe('What should I have to do after?')
+    expect(latestQuestion('I have a list of numbers. Sort it?')).toBe('I have a list of numbers. Sort it?')
+  })
+
+  it('asks for code when code is requested, whatever the answer style', () => {
+    expect(answerPrompt('Can you provide a Python script for the log rotation?', '', 'bullets')).toMatch(/in a fenced code block/)
+    expect(answerPrompt('Give me the kubectl command to restart a deployment', '', 'concise')).toMatch(/fenced code block/)
+    expect(answerPrompt('What is a multistage build in Docker?', '', 'bullets')).not.toMatch(/fenced code block/)
+  })
+})

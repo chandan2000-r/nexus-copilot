@@ -8,9 +8,11 @@ interface Props {
   capture: CaptureStatus | null
   view: View
   onView(v: View): void
+  /** Signed out: only the window buttons are shown. */
+  locked?: boolean
 }
 
-export function TitleBar({ capture, view, onView }: Props) {
+export function TitleBar({ capture, view, onView, locked = false }: Props) {
   const label = captureLabel(capture)
   const toggle = (v: View) => onView(view === v ? 'main' : v)
   return (
@@ -24,6 +26,8 @@ export function TitleBar({ capture, view, onView }: Props) {
         {label.text}
       </span>
       <div className="window-buttons">
+        {!locked && (
+          <>
         <button
           className={`icon-btn ${view === 'history' ? 'active' : ''}`}
           onClick={() => toggle('history')}
@@ -42,6 +46,8 @@ export function TitleBar({ capture, view, onView }: Props) {
         >
           <GearIcon />
         </button>
+          </>
+        )}
         <button className="icon-btn" onClick={() => window.nexus.hideWindow()} title="Hide (use the shortcut or tray to show)" aria-label="Hide">
           <EyeOffIcon />
         </button>

@@ -3,10 +3,12 @@ import { AnswerView } from '../components/AnswerView'
 import { ChatInput, type ChatInputHandle } from '../components/ChatInput'
 import { ControlBar } from '../components/ControlBar'
 import { HistoryPanel } from '../components/HistoryPanel'
+import { LoginPage } from '../components/LoginPage'
 import { SettingsPanel } from '../components/SettingsPanel'
 import { TitleBar, type View } from '../components/TitleBar'
 import { TranscriptPanel } from '../components/TranscriptPanel'
 import { useCopilot } from '../services/useCopilot'
+import type { AccountState } from '../shared/account'
 import type { CaptureStatus } from '../shared/capture'
 import type { UiCommand } from '../shared/copilot'
 import type { SecretsStatus } from '../shared/ipc'
@@ -17,20 +19,28 @@ export function App() {
   const [capture, setCapture] = useState<CaptureStatus | null>(null)
   const [secrets, setSecrets] = useState<SecretsStatus | null>(null)
   const [view, setView] = useState<View>('main')
+  const [account, setAccount] = useState<AccountState | null>(null)
   const copilot = useCopilot(settings)
+  const signedIn = account?.status === 'signed-in'
   const input = useRef<ChatInputHandle>(null)
 
   useEffect(() => {
     window.nexus.getSettings().then(setSettings)
     window.nexus.getCaptureStatus().then(setCapture)
     window.nexus.secrets.status().then(setSecrets)
-    const offs = [window.nexus.onSettingsChanged(setSettings), window.nexus.onCaptureStatus(setCapture)]
+    window.nexus.account.state().then(setAccount)
+    const offs = [
+      window.nexus.onSettingsChanged(setSettings),
+      window.nexus.onCaptureStatus(setCapture),
+      window.nexus.account.onChanged(setAccount)
+    ]
     return () => offs.forEach((off) => off())
   }, [])
 
   // Commands from global shortcuts and the tray menu.
   const commandRef = useRef<(c: UiCommand) => void>(() => {})
   commandRef.current = (cmd) => {
+    if (!signedIn) return
     if (cmd === 'focus') {
       setView('main')
       setTimeout(() => input.current?.focus(), 0)
@@ -53,13 +63,44 @@ export function App() {
     }
   }, [])
 
-  if (!settings) return <div className="shell" />
+  // Signed out (or blocked) while listening: stop the microphone and system audio here too.
+  // Signing out also clears the conversation, so the next person to sign in starts empty.
+  // Runs once per change of sign-in state; the ref gives it the latest copilot functions.
+  const copilotRef = useRef(copilot)
+  copilotRef.current = copilot
+  const status = account?.status
+  useEffect(() => {
+    if (!status || status === 'signed-in' || status === 'checking') return
+    const c = copilotRef.current
+    c.cancel()
+    if (c.listening) c.toggleListening()
+    if (status === 'signed-out') c.newSession()
+    setView('main')
+  }, [status])
+
+  if (!settings || !account) return <div className="shell" />
+
+  if (!signedIn) {
+    return (
+      <div className="shell">
+        <TitleBar capture={capture} view="main" onView={() => {}} locked />
+        <LoginPage account={account} onServer={(server) => window.nexus.updateSettings({ accountServer: server })} />
+      </div>
+    )
+  }
 
   return (
     <div className="shell">
       <TitleBar capture={capture} view={view} onView={setView} />
       {view === 'settings' && (
-        <SettingsPanel settings={settings} capture={capture} secrets={secrets} onSecrets={setSecrets} onClose={() => setView('main')} />
+        <SettingsPanel
+          settings={settings}
+          capture={capture}
+          secrets={secrets}
+          onSecrets={setSecrets}
+          account={account}
+          onClose={() => setView('main')}
+        />
       )}
       {view === 'history' && <HistoryPanel />}
       {/* The copilot view stays mounted so listening and streaming continue behind Settings/History. */}

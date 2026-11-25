@@ -66,12 +66,19 @@ export function isLocalModel(ai: Pick<AiSettings, 'provider' | 'openaiBaseUrl'>)
 
 export interface SttEngineMeta {
   name: string
-  keyName: SecretName
+  /** Secret holding the API key, or null when no key is needed. */
+  keyName: SecretName | null
   suggestedModels: string[]
   hint: string
 }
 
 export const STT_ENGINES: Record<SttEngineId, SttEngineMeta> = {
+  local: {
+    name: 'On this computer (NVIDIA Parakeet)',
+    keyName: null,
+    suggestedModels: [],
+    hint: 'Free and private: speech never leaves this computer and needs no API key. Words appear while people talk, and each finished sentence takes about 0.1 s. English. The speech model (660 MB) downloads once, automatically, the first time you listen.'
+  },
   whisper: {
     name: 'Whisper API (OpenAI-compatible)',
     keyName: 'whisper',

@@ -1,7 +1,7 @@
 {
   "name": "nexus-ai",
   "productName": "Nexus AI",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Private floating desktop assistant that is excluded from supported screen captures.",
   "main": "./out/main/index.js",
   "author": "Nexus AI",
@@ -32,6 +32,7 @@
     "playwright-core": "^1.65.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "sherpa-onnx-node": "2.0.3",
     "typescript": "^7.0.2",
     "unpdf": "^2.2.1",
     "vite": "^8.3.8",

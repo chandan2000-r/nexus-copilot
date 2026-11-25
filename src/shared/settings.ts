@@ -1,3 +1,5 @@
+import { DEFAULT_ACCOUNT_SERVER } from './account'
+
 export interface WindowBounds {
   x: number
   y: number
@@ -22,8 +24,11 @@ export interface ShortcutSettings {
 
 /** Chat / answer providers. 'openai' is any OpenAI-compatible API (OpenAI, Groq, OpenRouter, LM Studio…). */
 export type LlmProviderId = 'openai' | 'anthropic' | 'gemini' | 'ollama'
-/** Speech-to-text engines. 'whisper' is any OpenAI-compatible /audio/transcriptions API. */
-export type SttEngineId = 'whisper' | 'deepgram' | 'gemini'
+/**
+ * Speech-to-text engines. 'local' runs NVIDIA Parakeet on this computer (no key, no network after a
+ * one-time model download). 'whisper' is any OpenAI-compatible /audio/transcriptions API.
+ */
+export type SttEngineId = 'local' | 'whisper' | 'deepgram' | 'gemini'
 /** Names of API keys kept in the encrypted secret store (never sent to the renderer). */
 export type SecretName = 'openai' | 'anthropic' | 'gemini' | 'deepgram' | 'whisper'
 
@@ -83,6 +88,8 @@ export interface ProfileSettings {
 }
 
 export interface Settings {
+  /** Interview Copilot server that accounts sign in to (see shared/account.ts). */
+  accountServer: string
   alwaysOnTop: boolean
   captureExclusion: boolean
   /** 0.3 – 1.0 */
@@ -106,6 +113,7 @@ export const MIN_OPACITY = 0.3
 export const MAX_PROFILE_FIELD = 40_000
 
 export const DEFAULT_SETTINGS: Settings = {
+  accountServer: DEFAULT_ACCOUNT_SERVER,
   alwaysOnTop: true,
   captureExclusion: true,
   opacity: 0.96,
@@ -136,7 +144,7 @@ export const DEFAULT_SETTINGS: Settings = {
     speed: 'fast'
   },
   stt: {
-    engine: 'whisper',
+    engine: 'local',
     whisperBaseUrl: 'https://api.openai.com/v1',
     whisperModel: 'gpt-transcribe',
     deepgramModel: 'nova-3',

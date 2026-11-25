@@ -28,8 +28,9 @@ export class AudioPump {
     const downsample = createDownsampler(this.ctx.sampleRate)
     this.src = this.ctx.createMediaStreamSource(stream)
     // ScriptProcessorNode is deprecated but needs no worklet module, which keeps the CSP
-    // strict and works from file:// in packaged builds. ~85 ms per callback at 48 kHz.
-    this.node = this.ctx.createScriptProcessor(4096, 1, 1)
+    // strict and works from file:// in packaged builds. ~43 ms per callback at 48 kHz, so the
+    // end of speech is noticed sooner.
+    this.node = this.ctx.createScriptProcessor(2048, 1, 1)
     this.mute = this.ctx.createGain()
     this.mute.gain.value = 0 // must reach the destination to run, but must not play back
     let lastLevelAt = 0

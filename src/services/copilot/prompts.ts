@@ -1,5 +1,5 @@
 /** Prompt construction for the copilot. Pure functions, used by the renderer. */
-import type { MessageKind, TranscriptLine } from '../../shared/copilot'
+import type { AnswerMode, MessageKind, TranscriptLine } from '../../shared/copilot'
 import type { AnswerStyle, CopilotMode, CopilotSettings, ProfileSettings } from '../../shared/settings'
 import { windowStart } from '../ai/contextWindow'
 import type { ChatMessage, ImageAttachment } from '../ai/types'
@@ -92,15 +92,73 @@ export function transcriptBlock(transcript: string): string {
   return transcript ? `Live transcript so far (newest last):\n${transcript}\n` : ''
 }
 
-export function answerPrompt(question: string, transcript: string): string {
+/**
+ * The shape of an automatic answer, per answer style. Stated right after the question because
+ * small local models follow the end of the prompt most closely: without it qwen2.5:3b answered
+ * "How does HTTPS keep data secure?" with one bare sentence. Worded as plain instructions,
+ * not labels, so they are not copied into the answer.
+ */
+const ANSWER_SHAPE: Record<AnswerStyle, string> = {
+  concise:
+    "Write the user's reply now, as they would say it: the answer in the first sentence, then two or three sentences on how it works, with a concrete example.",
+  detailed:
+    "Write the user's reply now, as they would say it: the answer in the first sentence, then how it works, the key trade-off, and a concrete example.",
+  star: "Write the user's reply now, as they would say it: for a behavioural question a short STAR story; otherwise the answer in the first sentence, then how it works, with a concrete example.",
+  bullets:
+    "Write the user's reply now as 3 to 5 short bullet points to glance at while speaking: the answer first, then how it works, then a concrete example. For a question about the user, the points are their own answer in the first person."
+}
+
+/** "Write a Python script for log rotation", "give me the kubectl command", "SQL query for…" */
+const CODE_REQUEST = /\b(script|code|program|function|query|regex|snippet|dockerfile|manifest|yaml|commands?)\b|\bwrite (?:a|an|me|the|some)\b/i
+
+export function wantsCode(question: string): boolean {
+  return CODE_REQUEST.test(question)
+}
+
+/** Whatever the answer style: bullet points cannot hold the script someone asked for. */
+const CODE_SHAPE = 'Write the code they asked for now, complete and runnable, in a fenced code block, then one or two lines on how it works.'
+/** "Give me the kubectl command…": the command itself, not a program that runs it. */
+const COMMAND_SHAPE = 'Give the exact command or commands now in a fenced code block (no script around them), then one line on what each does.'
+const COMMAND_REQUEST = /\bcommands?\b/i
+const codeShape = (question: string) => (COMMAND_REQUEST.test(question) ? COMMAND_SHAPE : CODE_SHAPE)
+
+export const ANSWER_MODE_LABELS: Record<AnswerMode, string> = { quick: 'Quick', interview: 'Interview', detailed: 'Detailed' }
+
+/** Per-answer modes (the answer actions): switch an answer to another length and depth. */
+const MODE_SHAPE: Record<AnswerMode, string> = {
+  quick: "Write the user's reply now in 2 to 4 sentences: the answer first, then the one detail that matters most.",
+  interview:
+    "Write the user's reply now as a 30 to 60 second spoken answer in the first person: the answer first, then how it works, then a concrete example (from their own experience when the profile has one).",
+  detailed:
+    'Write a detailed answer now: the answer first, then how it works step by step, the key trade-offs, and the exact commands, configuration or code in fenced code blocks where they help.'
+}
+const codeModeShape = (question: string, mode: AnswerMode) =>
+  mode === 'quick'
+    ? 'Write only the essential code or command they asked for, in a fenced code block, with one line on how it works.'
+    : mode === 'detailed'
+      ? `${codeShape(question)} Then explain each part and how to run it.`
+      : codeShape(question)
+
+/**
+ * The request for an answer. `mode` set: a version made with the answer actions (Quick /
+ * Interview / Detailed); otherwise the automatic answer in the answer style from Settings.
+ */
+export function answerPrompt(question: string, transcript: string, style: AnswerStyle = 'concise', mode?: AnswerMode): string {
+  const code = wantsCode(question)
+  const shape = mode ? (code ? codeModeShape(question, mode) : MODE_SHAPE[mode]) : code ? codeShape(question) : ANSWER_SHAPE[style]
   // Small local models tend to just repeat a quoted question back; saying what to write stops that.
-  return [
-    transcriptBlock(transcript),
-    `"Them" just said: "${question}"\nWrite the user's reply now. Start with the answer itself; do not repeat the question.`
-  ]
+  return [transcriptBlock(transcript), `"Them" just said: "${question}"\n${shape} Do not repeat the question.`]
     .filter(Boolean)
     .join('\n')
 }
+
+/**
+ * Transcript kept in requests to a model on this computer. Measured on a real session with
+ * qwen2.5:3b: with the full transcript it answered "Can you provide a Python script for log
+ * rotation?" about the VPC discussed a minute earlier (2 of 3 times); with the last few lines
+ * it answered every question on topic and still followed up on "What should I do after that?".
+ */
+export const LOCAL_TRANSCRIPT_CHARS = 700
 
 export function screenPrompt(instruction: string, transcript: string): string {
   return [

@@ -20,15 +20,27 @@ export type SttEvent =
   | { type: 'partial'; source: Speaker; text: string }
   | { type: 'final'; source: Speaker; line: TranscriptLine }
   | { type: 'error'; source: Speaker; message: string }
+  /** Progress the user should see (e.g. the one-time speech model download). null clears it. */
+  | { type: 'status'; source: Speaker; message: string | null }
 
 export type MessageKind = 'chat' | 'answer' | 'screen'
+
+/** Versions of one answer: 'auto' (the answer style from Settings) and the three answer modes. */
+export type AnswerMode = 'quick' | 'interview' | 'detailed'
+export type AnswerVersion = 'auto' | AnswerMode
+export const ANSWER_VERSIONS: AnswerVersion[] = ['auto', 'quick', 'interview', 'detailed']
 
 export interface SessionMessage {
   id: string
   role: 'user' | 'assistant'
   kind: MessageKind
+  /** For answers: the version on show (versions[version]). */
   content: string
   at: number
+  /** Answers only. */
+  bookmarked?: boolean
+  versions?: Partial<Record<AnswerVersion, string>>
+  version?: AnswerVersion
 }
 
 export interface SessionRecord {
@@ -49,6 +61,27 @@ export interface SessionSummary {
   updatedAt: number
   questions: number
   lines: number
+  bookmarks: number
+}
+
+/** A history search match. */
+export interface SessionSearchHit {
+  sessionId: string
+  title: string
+  startedAt: number
+  where: 'title' | 'question' | 'answer' | 'transcript'
+  /** The matching text, shortened around the match. */
+  snippet: string
+}
+
+/** A bookmarked answer with its question, across all saved sessions. */
+export interface BookmarkItem {
+  sessionId: string
+  sessionTitle: string
+  messageId: string
+  question: string
+  answer: string
+  at: number
 }
 
 export interface ScreenCapture {

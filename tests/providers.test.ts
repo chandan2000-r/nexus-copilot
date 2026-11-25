@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AnthropicProvider } from '../src/services/ai/providers/anthropicProvider'
 import { GEMINI_OVERLOAD_FALLBACK, GeminiProvider } from '../src/services/ai/providers/geminiProvider'
 import { AIService } from '../src/services/ai/AIService'
-import { OLLAMA_KEEP_ALIVE, OLLAMA_NUM_CTX, OllamaProvider, ollamaThinkValues } from '../src/services/ai/providers/ollamaProvider'
+import { OLLAMA_KEEP_ALIVE, OLLAMA_NUM_CTX, OLLAMA_TEMPERATURE, OllamaProvider, ollamaThinkValues } from '../src/services/ai/providers/ollamaProvider'
 import { OpenAICompatibleProvider } from '../src/services/ai/providers/openaiProvider'
 import { geminiThinkingConfigs, openaiReasoningEfforts, resetSpeedCache } from '../src/services/ai/speed'
 import { apiError, request, RETRY } from '../src/services/ai/http'
@@ -167,7 +167,7 @@ describe('Ollama provider', () => {
     expect(await collect(p, [msgs[0], { role: 'user', content: 'hi' }])).toBe('local')
     const [body] = chats()
     expect(body).toMatchObject({ model: 'qwen2.5:3b', stream: true, keep_alive: OLLAMA_KEEP_ALIVE, think: false })
-    expect(body.options).toEqual({ num_ctx: OLLAMA_NUM_CTX, num_predict: 10 })
+    expect(body.options).toEqual({ num_ctx: OLLAMA_NUM_CTX, num_predict: 10, temperature: OLLAMA_TEMPERATURE })
   })
 
   it('drops think when the model rejects it, and leaves it out for Thorough', async () => {

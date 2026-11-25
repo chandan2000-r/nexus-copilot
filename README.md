@@ -16,13 +16,14 @@ Works with Zoom, Google Meet, Microsoft Teams, Webex, and any app that plays aud
 
 | | |
 |---|---|
-| **Live transcription** | System audio ("Them": the other side of the call) and your microphone ("You"), labelled per speaker. Whisper-compatible APIs (OpenAI, Groq, local servers), Deepgram real-time streaming, or Google Gemini. 25 languages or auto-detect. |
-| **Auto-answer** | Detects when the other side finishes a question and streams an answer immediately. Toggle with **⚡ Auto**; or answer on demand with the ⚡ button / shortcut. Newest question always wins. |
+| **Live transcription** | System audio ("Them": the other side of the call) and your microphone ("You"), labelled per speaker. Default: NVIDIA Parakeet **on this computer** (free, no key, words appear while people talk, ~0.1 s per sentence). Also Whisper-compatible APIs (OpenAI, Groq, local servers), Deepgram real-time streaming, or Google Gemini for 25 languages. |
+| **Auto-answer** | Detects when the other side finishes a question and streams an answer immediately. Toggle with **⚡ Auto**; or answer on demand with the ⚡ button / shortcut. Newest question always wins. Only the newest question is answered (not remarks before it), a cough or typing after a question does not hold the answer back, and requests for a script, query or command always get code, whatever the answer style. |
+| **Answer actions** | Under every answer: **Auto / Quick / Interview / Detailed** (Quick: 2–4 sentences; Interview: a 30–60 s spoken answer; Detailed: commands, configuration, trade-offs). Each version is written once for the same question and transcript and kept, so switching back is instant. Also **Regenerate**, **Bookmark**, **Read aloud** (the system voice; Nexus's own voice is kept out of the transcript) and **Copy**. |
 | **Personal answers** | Resume (paste or import PDF / Markdown / text), job description, target role, company and your own instructions go into every request. The prompt forbids inventing employers, numbers or credentials that are not in your profile. |
 | **Modes and styles** | Interview, Coding interview, Meeting, Sales call, General. Answer styles: Concise, Detailed, STAR, Bullets. Answer language can be fixed or follow the question. |
 | **Screen analysis** | One shortcut screenshots the display the overlay is on (the overlay itself is excluded) and sends it to a vision model: approach, code, complexity for coding problems; key points for anything else. |
 | **Any model** | OpenAI and any OpenAI-compatible API (Groq, OpenRouter, DeepSeek, Together, LM Studio, vLLM), Anthropic Claude, Google Gemini, or local models through Ollama. "Load" fetches the provider's live model list; "Test connection" checks key + model. **Answer speed** (default: Fastest) turns down the hidden reasoning of GPT-5 / o-series, Gemini and local thinking models so answers start streaming sooner. Local models read the conversation ahead of time, so answers start in well under a second. |
-| **Session history** | Transcripts and answers are saved locally per session; browse, export to Markdown, or delete. |
+| **Session history** | Transcripts and answers are saved locally per session; browse, **search** (questions, answers, transcripts), a **Bookmarks** view across sessions, export to Markdown (bookmarks marked ★), or delete. |
 | **Overlay** | Frameless translucent window, always on top (non-activating panel on macOS, floats over full-screen apps and does not steal focus), opacity, display picker, remembered position, tray / menu-bar menu. |
 | **Capture exclusion** | `NSWindowSharingNone` on macOS, `WDA_EXCLUDEFROMCAPTURE` on Windows, set by a native addon and **verified by reading the value back**; live status pill. |
 | **Private by design** | API keys are encrypted with the OS key store (Keychain / DPAPI) and never reach the UI process. Everything is stored on this computer; audio, transcripts and screenshots go only to the providers you configure. |
@@ -47,10 +48,13 @@ npm install      # also builds the native capture-exclusion addon
 npm run dev      # start with hot reload
 ```
 
+0. **Sign in** with your Interview Copilot account (see [Sign-in](#sign-in)).
 1. **Settings → AI**: pick a provider, paste its API key, click **Test connection**.
    Fast choices for live answers: `gpt-5-mini` (OpenAI), `claude-haiku-5-5` (Anthropic),
    `gemini-flash-latest` (Google), or Groq's OpenAI-compatible endpoint.
-2. **Settings → Audio**: pick a transcription engine.
+2. **Settings → Audio**: the default engine, **On this computer (NVIDIA Parakeet)**, needs no key:
+   the speech model (660 MB) downloads once, the first time you listen. English only. For other
+   languages pick a cloud engine:
    * One OpenAI key can run everything (Whisper engine, default base URL).
    * One Google key can run everything (choose Google Gemini in both tabs).
    * Lowest latency: Deepgram (words appear while people talk), or Groq Whisper
@@ -84,7 +88,32 @@ The app keeps the model loaded, gives it a fixed 8k-token context, turns thinkin
 (Answer speed: Fastest) and lets it read the transcript while people talk. When a question
 comes it only has to read the question, so answers start in about 0.3 s instead of 4–10 s
 (measured on an 8 GB M1). Screenshots go to an installed vision model automatically.
-Transcription still needs one of the engines under **Settings → Audio**.
+With the default on-this-computer transcription, nothing leaves the computer at all.
+
+Measured on an 8 GB M1 with `qwen2.5:3b`, playing 36 spoken interview questions (24 different,
+six English accents) into the microphone: the first words of the answer appear a median
+1.45–1.57 s after the speaker stops (worst 2.0 s): ~0.67 s to be sure they stopped, ~0.15 s to
+transcribe, ~0.12 s pause, ~0.5–0.6 s to the model's first word. Words show in the transcript
+~0.65 s after someone starts talking. For automatic answers the local model gets the transcript
+but not its own earlier answers, at temperature 0.2: small models otherwise blend an earlier
+answer into the new one. Answer style **Concise** gives the best spoken answers with 3B models.
+
+### Sign-in
+
+Nexus AI opens with a sign-in page and only works with a signed-in Interview Copilot account
+(the same accounts as the website; `ALLOW_REGISTRATION` there decides whether people can sign
+up). The server address is `https://copilot.tailccb1cc.ts.net` by default; change it with
+**Change** on the sign-in page. If the server requires subscriptions (`SUBSCRIPTION_REQUIRED`),
+accounts without an active plan see a "plans" page instead of the app.
+
+* The access token is kept encrypted in the main process (never in the window), and every
+  feature (answers, listening, screenshots) checks the sign-in in the main process.
+* While the app runs it checks in every 15 minutes, so the server's 2-hour idle limit is not
+  hit mid-interview. A network blip does not sign you out; the server ending the sign-in does
+  (expiry after `JWT_EXPIRE_MINUTES`, sign-out elsewhere, password change).
+* If the server can't be reached at start, the app waits and retries every 30 seconds.
+* **Settings → Account** shows who is signed in and has **Sign out** (which also ends the
+  sign-in on the server).
 
 ### Try it without API keys
 
@@ -149,8 +178,9 @@ notarization variables), replace `identity: "-"` in `electron-builder.yml` and e
 ## How it works
 
 ```
- system audio ─┐  getDisplayMedia + loopback        ┌─ Whisper API / Gemini (per utterance, after VAD)
- microphone ───┤  → 16 kHz PCM (renderer) ── IPC ──>├─ Deepgram (WebSocket stream)           (main)
+ system audio ─┐  getDisplayMedia + loopback        ┌─ Parakeet on this computer (sherpa-onnx; live preview + per utterance)
+ microphone ───┤  → 16 kHz PCM (renderer) ── IPC ──>├─ Whisper API / Gemini (per utterance, after VAD)
+               │                                    ├─ Deepgram (WebSocket stream)           (main)
                │                                    └─> transcript events ──┐
                │                                                            v
                │                   question detector (pause + heuristics) → answer request
@@ -177,14 +207,16 @@ src/
     tray.ts            tray / menu-bar icon
     preload.ts         contextBridge API (window.nexus)
   renderer/          React entry, styles, audio/capture.ts (MediaStream → PCM)
-  components/        TitleBar, ControlBar, TranscriptPanel, AnswerView, ChatInput, Markdown,
-                     HistoryPanel, SettingsPanel + settings/ tabs
+  components/        LoginPage, TitleBar, ControlBar, TranscriptPanel, AnswerView, ChatInput,
+                     Markdown, HistoryPanel, SettingsPanel + settings/ tabs
   services/
     useCopilot.ts      listening, transcript, auto-answer, screen analysis, chat, autosave
     ai/                AIService, provider registry, providers, SSE helpers, context trimming
-    stt/               resampler, WAV, VAD segmenter, Whisper/Gemini/Deepgram engines, service
+    account/           AccountService: sign-in, plan check, keep-alive (Interview Copilot API)
+    stt/               resampler, WAV, VAD segmenter, Parakeet (localModel) / Whisper / Gemini /
+                       Deepgram engines, tech-term fixes, service
     copilot/           prompts, question detector, Markdown parser
-  native/            capture-exclusion addon (macOS AppKit, Windows user32)
+  native/            capture-exclusion addon (macOS AppKit, Windows user32), sherpa-onnx loader
   storage/           settings (JSON), API keys (safeStorage), sessions (JSON per session)
   shared/            types shared by main and renderer (settings, IPC, providers, transcript)
 tests/               Vitest unit tests
@@ -197,7 +229,9 @@ In the user-data folder (`~/Library/Application Support/Nexus AI` on macOS,
 `%APPDATA%\Nexus AI` on Windows):
 
 * `settings.json`: settings and profile. Delete it to reset.
-* `secrets.json`: API keys, encrypted with the OS key store.
+* `secrets.json`: API keys and the account sign-in token, encrypted with the OS key store.
+* `models/`: the on-this-computer speech model (660 MB). Delete it to free the space; it
+  downloads again the next time you listen with that engine.
 * `sessions/`: one JSON file per saved session (turn off in Settings → AI → Save sessions).
 
 ## Responsible use

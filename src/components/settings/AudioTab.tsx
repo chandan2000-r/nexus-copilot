@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listInputDevices } from '../../renderer/audio/capture'
-import type { SecretsStatus } from '../../shared/ipc'
+import type { LocalModelStatus, SecretsStatus } from '../../shared/ipc'
 import { LANGUAGES, STT_ENGINES } from '../../shared/providers'
 import type { Settings, SettingsPatch, SttEngineId } from '../../shared/settings'
 import { KeyField, ModelField, Row, TextField, Toggle } from './fields'
@@ -39,6 +39,10 @@ export function AudioTab({ settings, secrets, onSecrets, update }: Props) {
         </select>
       </Row>
       <p className="section-hint">{meta.hint}</p>
+      {stt.engine === 'local' && <LocalModelRow />}
+      {stt.engine === 'local' && stt.language !== 'auto' && stt.language !== 'en' && (
+        <p className="section-hint warn">This engine understands English only. For other languages choose Deepgram, Whisper API or Gemini.</p>
+      )}
       {stt.engine === 'whisper' && (
         <>
           <div className="field-block">
@@ -111,5 +115,52 @@ export function AudioTab({ settings, secrets, onSecrets, update }: Props) {
         <p className="section-hint">Device names appear after microphone access is granted (start listening with "You" on once).</p>
       )}
     </>
+  )
+}
+
+const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`
+
+/** Download state of the on-this-computer speech model, with a button to fetch it ahead of time. */
+function LocalModelRow() {
+  const [status, setStatus] = useState<LocalModelStatus | null>(null)
+  const downloading = status?.state === 'downloading'
+
+  useEffect(() => {
+    let alive = true
+    const refresh = () => window.nexus.stt.modelStatus().then((s) => alive && setStatus(s), () => {})
+    void refresh()
+    // Poll while a download runs (it may have been started by "Listen").
+    const t = setInterval(refresh, 1_000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [])
+
+  if (!status) return null
+  const pct = Math.floor((status.received / Math.max(1, status.total)) * 100)
+  return (
+    <Row
+      label="Speech model"
+      hint={
+        status.state === 'ready'
+          ? `Downloaded (${mb(status.total)}). Works offline.`
+          : downloading
+            ? `${mb(status.received)} of ${mb(status.total)}. You can keep using the app.`
+            : status.state === 'error'
+              ? `Download failed: ${status.error}`
+              : `Not downloaded yet (${mb(status.total)}). It downloads automatically when you start listening.`
+      }
+    >
+      {status.state === 'ready' ? (
+        <span className="test-ok">Ready</span>
+      ) : downloading ? (
+        <span>{pct}%</span>
+      ) : (
+        <button className="mini-btn primary" onClick={() => void window.nexus.stt.downloadModel().then(setStatus)}>
+          {status.state === 'error' ? 'Try again' : 'Download now'}
+        </button>
+      )}
+    </Row>
   )
 }

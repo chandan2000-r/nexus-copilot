@@ -82,6 +82,17 @@ export class VadSegmenter {
     this.pending = buf.slice(off)
   }
 
+  /** True while an utterance is in progress. */
+  get active(): boolean {
+    return this.speaking
+  }
+
+  /** Audio of the utterance in progress so far (for live previews), or null between utterances. */
+  current(): { pcm: Int16Array; voicedMs: number } | null {
+    if (!this.speaking || this.frames.length === 0) return null
+    return { pcm: concat(this.frames), voicedMs: this.voicedFrames * this.o.frameMs }
+  }
+
   /** Ends any utterance in progress (used when listening stops). */
   flush(): void {
     if (this.speaking) this.end()
@@ -157,13 +168,16 @@ export class VadSegmenter {
   private emit(): void {
     const voicedMs = this.voicedFrames * this.o.frameMs
     if (voicedMs < this.o.minSpeechMs || this.frames.length === 0) return
-    const len = this.frames.reduce((n, x) => n + x.length, 0)
-    const pcm = new Int16Array(len)
-    let off = 0
-    for (const x of this.frames) {
-      pcm.set(x, off)
-      off += x.length
-    }
-    this.handlers.onSegment({ pcm, startSample: this.segStart, voicedMs })
+    this.handlers.onSegment({ pcm: concat(this.frames), startSample: this.segStart, voicedMs })
   }
+}
+
+function concat(frames: Int16Array[]): Int16Array {
+  const pcm = new Int16Array(frames.reduce((n, x) => n + x.length, 0))
+  let off = 0
+  for (const x of frames) {
+    pcm.set(x, off)
+    off += x.length
+  }
+  return pcm
 }

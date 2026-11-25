@@ -6,12 +6,17 @@ import {
   globalShortcut,
   ipcMain,
   type IpcMainEvent,
-  type IpcMainInvokeEvent
+  type IpcMainInvokeEvent,
+  shell
 } from 'electron'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { AIService } from '../services/ai/AIService'
 import { asInt16 } from '../services/stt/audio'
 import { TranscriptionService } from '../services/stt/TranscriptionService'
+import { LocalSpeechModel, PARAKEET_MODEL } from '../services/stt/localModel'
+import { AccountService } from '../services/account/AccountService'
+import { loadSherpaAddon } from '../native/sherpa'
 import type { SessionRecord, Speaker } from '../shared/copilot'
 import { IPC, type AISendRequest, type AIStreamEvent } from '../shared/ipc'
 import { LLM_PROVIDERS } from '../shared/providers'
@@ -46,6 +51,9 @@ if (!app.requestSingleInstanceLock()) {
   let sessions: SessionStore
   let ai: AIService
   let transcription: TranscriptionService
+  let localSpeech: LocalSpeechModel
+  let account: AccountService
+  const NOT_SIGNED_IN = 'Sign in to use Nexus AI.'
 
   const fromOverlay = (e: IpcMainEvent | IpcMainInvokeEvent) => !!win && e.sender === win.webContents
   const isSpeaker = (s: unknown): s is Speaker => s === 'them' || s === 'you'
@@ -73,6 +81,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (JSON.stringify(next.shortcuts) !== JSON.stringify(prev.shortcuts)) registerShortcuts(win, next.shortcuts)
     if (next.launchAtLogin !== prev.launchAtLogin) applyLoginItem(next)
+    if (next.accountServer !== prev.accountServer) account.serverChanged()
     tray?.update(next)
     win.webContents.send(IPC.settingsChanged, next)
     return next
@@ -112,18 +121,19 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on(IPC.aiSend, (e, req: AISendRequest) => {
       if (!fromOverlay(e)) return
       const emit = (ev: AIStreamEvent) => !e.sender.isDestroyed() && e.sender.send(IPC.aiEvent, ev)
+      if (!account.allowed) return emit({ requestId: req.requestId, type: 'error', message: NOT_SIGNED_IN })
       void ai.send(req.requestId, req.messages, {
         onDelta: (text) => emit({ requestId: req.requestId, type: 'delta', text }),
         onDone: () => emit({ requestId: req.requestId, type: 'done' }),
         onError: (message) => emit({ requestId: req.requestId, type: 'error', message })
       })
     })
-    ipcMain.on(IPC.aiPrefill, (e, messages: unknown) => fromOverlay(e) && Array.isArray(messages) && ai.prefill(messages))
+    ipcMain.on(IPC.aiPrefill, (e, messages: unknown) => fromOverlay(e) && account.allowed && Array.isArray(messages) && ai.prefill(messages))
     ipcMain.handle(IPC.aiModels, (e, id: unknown) =>
       fromOverlay(e) && isProvider(id) ? ai.listModels(id) : { ok: false, error: 'unknown provider' }
     )
     ipcMain.handle(IPC.aiTest, (e, id: unknown) =>
-      fromOverlay(e) && isProvider(id) ? ai.test(id) : { ok: false, error: 'unknown provider' }
+      !account.allowed ? { ok: false, error: NOT_SIGNED_IN } : fromOverlay(e) && isProvider(id) ? ai.test(id) : { ok: false, error: 'unknown provider' }
     )
 
     // API keys: write-only from the renderer's point of view.
@@ -138,31 +148,63 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IPC.mediaAccess, (e) => (fromOverlay(e) ? requestMicAccess() : { granted: false, status: 'denied' }))
     ipcMain.handle(IPC.screenCapture, (e) => {
       if (!fromOverlay(e) || !win) throw new Error('not allowed')
+      if (!account.allowed) throw new Error(NOT_SIGNED_IN)
       return captureScreen(win)
     })
 
     // Transcription
     ipcMain.handle(IPC.sttStart, (e, source: unknown) =>
-      fromOverlay(e) && isSpeaker(source) ? transcription.start(source) : { ok: false, error: 'not allowed' }
+      !account.allowed
+        ? { ok: false, error: NOT_SIGNED_IN }
+        : fromOverlay(e) && isSpeaker(source)
+          ? transcription.start(source)
+          : { ok: false, error: 'not allowed' }
     )
     ipcMain.handle(IPC.sttStop, (e, source: unknown) => {
       if (fromOverlay(e) && isSpeaker(source)) return transcription.stop(source)
     })
     ipcMain.on(IPC.sttAudio, (e, source: unknown, data: ArrayBuffer | ArrayBufferView) => {
-      if (fromOverlay(e) && isSpeaker(source) && data) transcription.audio(source, asInt16(data))
+      if (fromOverlay(e) && account.allowed && isSpeaker(source) && data) transcription.audio(source, asInt16(data))
+    })
+    ipcMain.handle(IPC.sttModelStatus, (e) => {
+      if (!fromOverlay(e)) throw new Error('not allowed')
+      return localSpeech.status()
+    })
+    ipcMain.handle(IPC.sttModelDownload, (e) => {
+      if (!fromOverlay(e)) throw new Error('not allowed')
+      localSpeech.ensure().catch(() => {}) // the outcome is read through sttModelStatus
+      return localSpeech.status()
     })
 
     // Sessions
-    ipcMain.handle(IPC.sessionsList, (e) => (fromOverlay(e) ? sessions.list() : []))
-    ipcMain.handle(IPC.sessionsGet, (e, id: string) => (fromOverlay(e) ? sessions.get(id) : null))
+    // Saved transcripts and answers are part of the account's work: only while signed in.
+    const mayUse = (e: IpcMainEvent | IpcMainInvokeEvent) => fromOverlay(e) && account.allowed
+    ipcMain.handle(IPC.sessionsList, (e) => (mayUse(e) ? sessions.list() : []))
+    ipcMain.handle(IPC.sessionsGet, (e, id: string) => (mayUse(e) ? sessions.get(id) : null))
     ipcMain.handle(IPC.sessionsSave, (e, rec: SessionRecord) => {
-      if (fromOverlay(e) && store.get().copilot.saveSessions) sessions.save(rec)
+      if (mayUse(e) && store.get().copilot.saveSessions) sessions.save(rec)
     })
     ipcMain.handle(IPC.sessionsDelete, (e, id: string) => {
-      if (fromOverlay(e)) sessions.delete(id)
+      if (mayUse(e)) sessions.delete(id)
     })
-    ipcMain.handle(IPC.sessionsExport, (e, id: string) => (fromOverlay(e) ? exportSession(id) : false))
-    ipcMain.handle(IPC.importProfileFile, (e) => (fromOverlay(e) && win ? importProfileFile(win) : null))
+    ipcMain.handle(IPC.sessionsExport, (e, id: string) => (mayUse(e) ? exportSession(id) : false))
+    ipcMain.handle(IPC.sessionsSearch, (e, query: unknown) => (mayUse(e) && typeof query === 'string' ? sessions.search(query) : []))
+    ipcMain.handle(IPC.sessionsBookmarks, (e) => (mayUse(e) ? sessions.bookmarks() : []))
+    ipcMain.handle(IPC.importProfileFile, (e) => (mayUse(e) && win ? importProfileFile(win) : null))
+
+    // Account (the token itself never leaves the main process)
+    ipcMain.handle(IPC.accountState, (e) => (fromOverlay(e) ? account.state() : null))
+    ipcMain.handle(IPC.accountSignIn, (e, email: unknown, password: unknown) => {
+      if (!fromOverlay(e) || typeof email !== 'string' || typeof password !== 'string') return { ok: false, error: 'not allowed' }
+      return account.signIn(email.slice(0, 320), password.slice(0, 256))
+    })
+    ipcMain.handle(IPC.accountSignOut, (e) => (fromOverlay(e) ? account.signOut() : undefined))
+    ipcMain.handle(IPC.accountRetry, (e) => (fromOverlay(e) ? account.init() : null))
+    ipcMain.on(IPC.accountOpenWeb, (e, page: unknown) => {
+      if (!fromOverlay(e)) return
+      const base = account.state().server
+      void shell.openExternal(page === 'billing' ? `${base}/billing` : `${base}/`)
+    })
   }
 
   app.on('second-instance', () => win && showPassive(win))
@@ -173,10 +215,22 @@ if (!app.requestSingleInstanceLock()) {
     secrets = new SecretStore()
     sessions = new SessionStore()
     ai = new AIService(() => store.get(), (n) => secrets.get(n))
+    account = new AccountService(
+      () => store.get().accountServer,
+      { get: () => secrets.get('accountToken'), set: (t) => secrets.set('accountToken', t) },
+      (state) => {
+        // Signed out or blocked: stop everything that was running for the account.
+        if (state.status !== 'signed-in' && state.status !== 'checking') void transcription?.stopAll()
+        if (win && !win.isDestroyed()) win.webContents.send(IPC.accountChanged, state)
+      }
+    )
+    void account.init()
+    localSpeech = new LocalSpeechModel(join(app.getPath('userData'), 'models', PARAKEET_MODEL.id), loadSherpaAddon)
     transcription = new TranscriptionService(
       () => store.get(),
       (n) => secrets.get(n),
-      (ev) => win && !win.isDestroyed() && win.webContents.send(IPC.sttEvent, ev)
+      (ev) => win && !win.isDestroyed() && win.webContents.send(IPC.sttEvent, ev),
+      localSpeech
     )
     const settings = store.get()
 

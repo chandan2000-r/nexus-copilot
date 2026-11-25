@@ -63,3 +63,28 @@ export function questionSnippet(text: string, max = 280): string {
   }
   return out || `…${t.slice(-max)}`
 }
+
+/**
+ * The question to answer, out of everything said since the last answer: from the last sentence
+ * that reads as a question to the end ("Write a script for log rotation. Please write."), plus
+ * the sentence before it when the question alone is very short ("I have a list of numbers. Sort
+ * it?"). Earlier remarks ("Yeah, we can create a VPC…") are left out: small models otherwise
+ * answer them instead of the question.
+ */
+export function latestQuestion(text: string): string {
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=[.!?。？！])\s+/)
+    .filter(Boolean)
+  let at = -1
+  for (let i = sentences.length - 1; i >= 0; i--) {
+    if (looksLikeQuestion(sentences[i])) {
+      at = i
+      break
+    }
+  }
+  if (at < 0) return sentences.slice(-2).join(' ')
+  const from = sentences[at].split(' ').length < 6 && at > 0 ? at - 1 : at
+  return sentences.slice(from).join(' ')
+}

@@ -42,16 +42,28 @@ const bridge: NexusBridge = {
     start: (source) => ipcRenderer.invoke(IPC.sttStart, source),
     audio: (source, pcm) => ipcRenderer.send(IPC.sttAudio, source, pcm),
     stop: (source) => ipcRenderer.invoke(IPC.sttStop, source),
-    onEvent: (cb) => subscribe(IPC.sttEvent, cb)
+    onEvent: (cb) => subscribe(IPC.sttEvent, cb),
+    modelStatus: () => ipcRenderer.invoke(IPC.sttModelStatus),
+    downloadModel: () => ipcRenderer.invoke(IPC.sttModelDownload)
   },
   sessions: {
     list: () => ipcRenderer.invoke(IPC.sessionsList),
     get: (id) => ipcRenderer.invoke(IPC.sessionsGet, id),
     save: (record) => ipcRenderer.invoke(IPC.sessionsSave, record),
     delete: (id) => ipcRenderer.invoke(IPC.sessionsDelete, id),
-    exportMarkdown: (id) => ipcRenderer.invoke(IPC.sessionsExport, id)
+    exportMarkdown: (id) => ipcRenderer.invoke(IPC.sessionsExport, id),
+    search: (query) => ipcRenderer.invoke(IPC.sessionsSearch, query),
+    bookmarks: () => ipcRenderer.invoke(IPC.sessionsBookmarks)
   },
-  importProfileFile: () => ipcRenderer.invoke(IPC.importProfileFile)
+  importProfileFile: () => ipcRenderer.invoke(IPC.importProfileFile),
+  account: {
+    state: () => ipcRenderer.invoke(IPC.accountState),
+    onChanged: (cb) => subscribe(IPC.accountChanged, cb),
+    signIn: (email, password) => ipcRenderer.invoke(IPC.accountSignIn, email, password),
+    signOut: () => ipcRenderer.invoke(IPC.accountSignOut),
+    retry: () => ipcRenderer.invoke(IPC.accountRetry),
+    openWeb: (page) => ipcRenderer.send(IPC.accountOpenWeb, page)
+  }
 }
 
 contextBridge.exposeInMainWorld('nexus', bridge)

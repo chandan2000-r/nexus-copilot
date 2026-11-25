@@ -5,6 +5,7 @@
 import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { normalizeServer } from '../shared/account'
 import { ANSWER_SPEEDS, LLM_PROVIDERS, STT_ENGINES } from '../shared/providers'
 import {
   DEFAULT_SETTINGS,
@@ -32,6 +33,7 @@ export function sanitize(raw: Partial<Settings>): Settings {
     if (![x, y, width, height].every(Number.isFinite)) s.bounds = null
   }
   const d = DEFAULT_SETTINGS
+  s.accountServer = normalizeServer(str(s.accountServer, d.accountServer, 500)) ?? d.accountServer
   if (!(s.ai.provider in LLM_PROVIDERS)) s.ai.provider = d.ai.provider
   for (const id of Object.keys(LLM_PROVIDERS) as (keyof typeof LLM_PROVIDERS)[]) {
     s.ai.models[id] = str(s.ai.models[id], d.ai.models[id], 200).trim()

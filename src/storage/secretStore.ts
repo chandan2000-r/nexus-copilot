@@ -9,12 +9,15 @@ import type { SecretsStatus } from '../shared/ipc'
 import type { SecretName } from '../shared/settings'
 
 const NAMES: SecretName[] = ['openai', 'anthropic', 'gemini', 'deepgram', 'whisper']
+/** Secrets only the main process uses: the renderer can neither set nor see them. */
+export type InternalSecret = 'accountToken'
+type Stored = SecretName | InternalSecret
 type Entry = { enc: 'os' | 'plain'; v: string }
 
 export class SecretStore {
   private readonly file = join(app.getPath('userData'), 'secrets.json')
-  private data: Partial<Record<SecretName, Entry>> = {}
-  private cache = new Map<SecretName, string>()
+  private data: Partial<Record<Stored, Entry>> = {}
+  private cache = new Map<Stored, string>()
 
   constructor() {
     try {
@@ -32,7 +35,7 @@ export class SecretStore {
     return safeStorage.isEncryptionAvailable()
   }
 
-  get(name: SecretName): string | null {
+  get(name: Stored): string | null {
     if (this.cache.has(name)) return this.cache.get(name)!
     const e = this.data[name]
     if (!e) return null
@@ -46,7 +49,7 @@ export class SecretStore {
     }
   }
 
-  set(name: SecretName, value: string): void {
+  set(name: Stored, value: string): void {
     const v = value.trim()
     this.cache.delete(name)
     if (!v) delete this.data[name]

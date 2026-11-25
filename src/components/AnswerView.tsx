@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { ANSWER_MODE_LABELS, STYLE_LABELS } from '../services/copilot/prompts'
 import type { Copilot, UiMessage } from '../services/useCopilot'
+import { ANSWER_VERSIONS, type AnswerVersion } from '../shared/copilot'
 import type { SecretsStatus } from '../shared/ipc'
 import { LLM_PROVIDERS } from '../shared/providers'
 import type { Settings } from '../shared/settings'
+import { RefreshIcon, SpeakerIcon, StarIcon, StopIcon } from './icons'
 import { Markdown, CopyButton } from './Markdown'
 import { prettyAccelerator } from './ShortcutRecorder'
 
@@ -30,16 +33,87 @@ function UserTurn({ m }: { m: UiMessage }) {
   )
 }
 
-function AssistantTurn({ m, live }: { m: UiMessage; live: boolean }) {
+const versionLabel = (v: AnswerVersion) => (v === 'auto' ? 'Auto' : ANSWER_MODE_LABELS[v])
+
+interface TurnProps {
+  m: UiMessage
+  /** The question this answers (decides which actions apply). */
+  asked: UiMessage | undefined
+  live: boolean
+  copilot: Copilot
+  settings: Settings
+}
+
+function AssistantTurn({ m, asked, live, copilot, settings }: TurnProps) {
+  const isAnswer = asked?.kind === 'answer'
+  const canRegenerate = asked?.kind === 'answer' || asked?.kind === 'chat'
+  const shown = m.version ?? 'auto'
+  const reading = copilot.reading === m.id
   return (
     <div className="msg assistant">
       <div className="answer">
         {m.content ? <Markdown text={m.content} /> : !m.error && <span className="thinking">Thinking…</span>}
         {live && m.content && <span className="caret" />}
         {m.error && <div className="chat-error">{m.error}</div>}
-        {!live && m.content && (
-          <div className="answer-actions">
-            <CopyButton text={m.content} label="Copy answer" />
+        {(m.content || m.error) && (
+          <div className="answer-bar">
+            {isAnswer && (
+              <div className="versions" role="group" aria-label="Answer version">
+                {ANSWER_VERSIONS.map((v) => (
+                  <button
+                    key={v}
+                    className={`version-chip ${shown === v ? 'active' : ''} ${m.versions?.[v] ? 'made' : ''}`}
+                    aria-pressed={shown === v}
+                    disabled={live}
+                    title={
+                      v === 'auto'
+                        ? `Your answer style (${STYLE_LABELS[settings.copilot.answerStyle]})`
+                        : v === 'quick'
+                          ? '2–4 sentences'
+                          : v === 'interview'
+                            ? 'A 30–60 second spoken answer'
+                            : 'Commands, configuration, trade-offs'
+                    }
+                    onClick={() => copilot.answerAs(m.id, v)}
+                  >
+                    {versionLabel(v)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="answer-tools">
+              {canRegenerate && (
+                <button
+                  className="copy-btn"
+                  title="Regenerate"
+                  aria-label="Regenerate"
+                  disabled={live}
+                  onClick={() => copilot.answerAs(m.id, shown, true)}
+                >
+                  <RefreshIcon width={13} height={13} />
+                </button>
+              )}
+              <button
+                className={`copy-btn ${m.bookmarked ? 'on' : ''}`}
+                title={m.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                aria-label={m.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                aria-pressed={!!m.bookmarked}
+                onClick={() => copilot.toggleBookmark(m.id)}
+              >
+                <StarIcon width={13} height={13} filled={!!m.bookmarked} />
+              </button>
+              {!live && m.content && (
+                <button
+                  className={`copy-btn ${reading ? 'on' : ''}`}
+                  title={reading ? 'Stop reading' : 'Read aloud'}
+                  aria-label={reading ? 'Stop reading' : 'Read aloud'}
+                  onClick={() => (reading ? copilot.stopReading() : copilot.readAloud(m.id))}
+                >
+                  {reading ? <StopIcon width={13} height={13} /> : <SpeakerIcon width={13} height={13} />}
+                </button>
+              )}
+              {!live && m.content && <CopyButton text={m.content} label="Copy answer" />}
+            </div>
           </div>
         )}
       </div>
@@ -121,7 +195,14 @@ export function AnswerView({ copilot, settings, secrets, onOpenSettings }: Props
         m.role === 'user' ? (
           <UserTurn key={m.id} m={m} />
         ) : (
-          <AssistantTurn key={m.id} m={m} live={streaming && i === messages.length - 1} />
+          <AssistantTurn
+            key={m.id}
+            m={m}
+            asked={[...messages.slice(0, i)].reverse().find((x) => x.role === 'user')}
+            live={streaming && copilot.generating === m.id}
+            copilot={copilot}
+            settings={settings}
+          />
         )
       )}
     </main>

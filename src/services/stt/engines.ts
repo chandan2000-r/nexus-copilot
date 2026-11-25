@@ -3,6 +3,7 @@ import type { Speaker, SttEvent } from '../../shared/copilot'
 import { apiError, request, trimSlash } from '../ai/http'
 import { GEMINI_BASE, geminiRequest } from '../ai/providers/geminiProvider'
 import { encodeWav, STT_SAMPLE_RATE } from './audio'
+import { fixTechTerms } from './techTerms'
 import { VadSegmenter, type Segment, type VadOptions } from './vad'
 
 export type Emit = (e: SttEvent) => void
@@ -12,7 +13,15 @@ export interface SttSession {
   close(): Promise<void>
 }
 
+/** Cloud engines: one WAV file per utterance. */
 export type SegmentTranscriber = (wav: Uint8Array, opts: { prompt: string; signal: AbortSignal }) => Promise<string>
+/** What SegmentedSession calls: raw 16 kHz PCM. `partial` marks a live preview of an unfinished utterance. */
+export type PcmTranscriber = (pcm: Int16Array, opts: { prompt: string; signal: AbortSignal; partial?: boolean }) => Promise<string>
+
+export const viaWav =
+  (t: SegmentTranscriber): PcmTranscriber =>
+  (pcm, { prompt, signal }) =>
+    t(encodeWav(pcm), { prompt, signal })
 
 const NON_SPEECH = /^[[(（【].*[\])）】]$/
 const HALLUCINATIONS = [
@@ -30,7 +39,7 @@ export function cleanTranscript(text: string, voicedMs: number): string {
   if (!t || NON_SPEECH.test(t)) return ''
   if (voicedMs < 1500 && HALLUCINATIONS.some((r) => r.test(t))) return ''
   if (/^no (intelligible )?speech/i.test(t)) return ''
-  return t
+  return fixTechTerms(t)
 }
 
 export function whisperTranscriber(cfg: {
@@ -115,33 +124,50 @@ function errorGate(emit: Emit, source: Speaker) {
 let lineCounter = 0
 const lineId = (source: Speaker) => `${source}-${Date.now().toString(36)}-${(lineCounter++).toString(36)}`
 
-/** VAD → one transcription request per utterance. Results are emitted in speaking order. */
+export interface SegmentedOptions {
+  vad?: Partial<VadOptions>
+  /**
+   * Engines fast enough to re-read the utterance in progress (on this computer) set this: while
+   * someone talks, a preview of their words is emitted at most this often.
+   */
+  partialEveryMs?: number
+}
+
+/** VAD → one transcription per utterance, emitted in speaking order; optional live previews. */
 export class SegmentedSession implements SttSession {
   private readonly vad: VadSegmenter
   private readonly startedAt = Date.now()
   private readonly abort = new AbortController()
   private readonly fail: (m: string) => void
+  private readonly partialEveryMs: number
   private chain: Promise<void> = Promise.resolve()
   private context = ''
+  /** Counts finished utterances, so a preview that arrives after its utterance ended is dropped. */
+  private utterance = 0
+  private previewBusy = false
+  private lastPreviewAt = 0
+  private previewShown = false
 
   constructor(
     private readonly source: Speaker,
-    private readonly transcribe: SegmentTranscriber,
+    private readonly transcribe: PcmTranscriber,
     private readonly emit: Emit,
-    vad: Partial<VadOptions> = {}
+    opts: SegmentedOptions = {}
   ) {
     this.fail = errorGate(emit, source)
+    this.partialEveryMs = opts.partialEveryMs ?? 0
     this.vad = new VadSegmenter(
       {
         onSegment: (seg) => this.onSegment(seg),
         onSpeech: (speaking) => this.emit({ type: 'speech', source: this.source, speaking })
       },
-      vad
+      opts.vad
     )
   }
 
   write(pcm: Int16Array): void {
     this.vad.push(pcm)
+    if (this.partialEveryMs) this.preview()
   }
 
   async close(): Promise<void> {
@@ -150,10 +176,37 @@ export class SegmentedSession implements SttSession {
     this.abort.abort()
   }
 
+  private preview(): void {
+    if (this.previewBusy || this.abort.signal.aborted) return
+    const now = Date.now()
+    if (now - this.lastPreviewAt < this.partialEveryMs) return
+    const cur = this.vad.current()
+    if (!cur || cur.voicedMs < 300) return
+    this.lastPreviewAt = now
+    this.previewBusy = true
+    const utterance = this.utterance
+    this.transcribe(cur.pcm, { prompt: this.context, signal: this.abort.signal, partial: true })
+      .then(
+        (raw) => {
+          const text = cleanTranscript(raw, cur.voicedMs)
+          if (!text || utterance !== this.utterance || !this.vad.active) return
+          this.previewShown = true
+          this.emit({ type: 'partial', source: this.source, text })
+        },
+        () => {
+          /* previews are best effort; the finished utterance reports errors */
+        }
+      )
+      .finally(() => {
+        this.previewBusy = false
+      })
+  }
+
   private onSegment(seg: Segment): void {
+    this.utterance++
     const at = this.startedAt + Math.round((seg.startSample / STT_SAMPLE_RATE) * 1000)
     const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(30_000)])
-    const pending = this.transcribe(encodeWav(seg.pcm), { prompt: this.context, signal }).then(
+    const pending = this.transcribe(seg.pcm, { prompt: this.context, signal }).then(
       (text) => cleanTranscript(text, seg.voicedMs),
       (err: Error) => {
         if (!this.abort.signal.aborted) this.fail(err.name === 'TimeoutError' ? 'Transcription timed out.' : err.message)
@@ -162,10 +215,44 @@ export class SegmentedSession implements SttSession {
     )
     this.chain = this.chain.then(async () => {
       const text = await pending
-      if (!text) return
+      if (!text) {
+        // Nothing usable: take down the preview unless the next utterance already has its own.
+        if (this.previewShown && !this.vad.active) {
+          this.previewShown = false
+          this.emit({ type: 'partial', source: this.source, text: '' })
+        }
+        return
+      }
+      this.previewShown = false
       this.context = `${this.context} ${text}`.slice(-300).trim()
       this.emit({ type: 'final', source: this.source, line: { id: lineId(this.source), source: this.source, text, at } })
     })
+  }
+}
+
+/** Drops audio until `ready` resolves (e.g. while the speech model downloads). */
+export class GatedSession implements SttSession {
+  private open = false
+
+  constructor(
+    private readonly inner: SttSession,
+    ready: Promise<unknown>
+  ) {
+    ready.then(
+      () => {
+        this.open = true
+      },
+      () => {}
+    )
+  }
+
+  write(pcm: Int16Array): void {
+    if (this.open) this.inner.write(pcm)
+  }
+
+  close(): Promise<void> {
+    this.open = false
+    return this.inner.close()
   }
 }
 
