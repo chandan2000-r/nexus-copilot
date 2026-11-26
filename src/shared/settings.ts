@@ -1,4 +1,5 @@
 import { DEFAULT_ACCOUNT_SERVER } from './account'
+import type { WindowSize } from './windowSize'
 
 export interface WindowBounds {
   x: number
@@ -20,6 +21,8 @@ export interface ShortcutSettings {
   analyzeScreen: string
   /** Start or stop listening. */
   toggleListening: string
+  /** Switch the window between the small, medium and large sizes. */
+  cycleWindowSize: string
 }
 
 /** Chat / answer providers. 'openai' is any OpenAI-compatible API (OpenAI, Groq, OpenRouter, LM Studio…). */
@@ -99,6 +102,8 @@ export interface Settings {
   hideActivity: boolean
   /** 0.3 – 1.0 */
   opacity: number
+  /** Window size preset in use, or 'custom' after the window was resized by dragging. */
+  windowSize: WindowSize
   shortcuts: ShortcutSettings
   launchAtLogin: boolean
   startHidden: boolean
@@ -123,13 +128,15 @@ export const DEFAULT_SETTINGS: Settings = {
   captureExclusion: true,
   hideActivity: true,
   opacity: 0.96,
+  windowSize: 'medium',
   shortcuts: {
     toggleWindow: 'CommandOrControl+Shift+Space',
     focusInput: 'CommandOrControl+Shift+J',
     nextDisplay: 'CommandOrControl+Alt+Shift+M',
     answerNow: 'CommandOrControl+Shift+Return',
     analyzeScreen: 'CommandOrControl+Shift+H',
-    toggleListening: 'CommandOrControl+Shift+L'
+    toggleListening: 'CommandOrControl+Shift+L',
+    cycleWindowSize: 'CommandOrControl+Alt+Shift+W'
   },
   launchAtLogin: false,
   startHidden: false,

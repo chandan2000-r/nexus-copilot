@@ -7,6 +7,7 @@ import {
   ipcMain,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
+  screen,
   shell
 } from 'electron'
 import { writeFile } from 'node:fs/promises'
@@ -21,6 +22,7 @@ import type { SessionRecord, Speaker } from '../shared/copilot'
 import { IPC, type AISendRequest, type AIStreamEvent } from '../shared/ipc'
 import { LLM_PROVIDERS } from '../shared/providers'
 import { mergeSettings, type LlmProviderId, type Settings, type SettingsPatch } from '../shared/settings'
+import { nextWindowSize } from '../shared/windowSize'
 import { SecretStore } from '../storage/secretStore'
 import { SessionStore, sessionToMarkdown } from '../storage/sessionStore'
 import { SettingsStore } from '../storage/settingsStore'
@@ -35,6 +37,7 @@ import {
   createOverlayWindow,
   listDisplays,
   moveToDisplay,
+  resizeWindow,
   showPassive
 } from './windowManager'
 
@@ -72,21 +75,34 @@ if (!app.requestSingleInstanceLock()) {
 
   function updateSettings(patch: SettingsPatch): Settings {
     const prev = store.get()
-    const next = store.set(mergeSettings(prev, patch))
+    let next = store.set(mergeSettings(prev, patch))
     if (!win) return next
 
+    // Choosing a size resizes the window, even when it is the size already chosen (the window
+    // may have been moved to a smaller display since).
+    if (patch.windowSize !== undefined && patch.windowSize === next.windowSize && next.windowSize !== 'custom') {
+      const bounds = resizeWindow(win, next.windowSize)
+      next = store.set({ bounds, displayId: screen.getDisplayMatching(bounds).id })
+    }
     if (next.alwaysOnTop !== prev.alwaysOnTop) applyAlwaysOnTop(win, next.alwaysOnTop)
     if (next.opacity !== prev.opacity) win.setOpacity(next.opacity)
     if (next.captureExclusion !== prev.captureExclusion) {
       win.webContents.send(IPC.captureStatusChanged, guard!.apply(next.captureExclusion))
     }
-    if (JSON.stringify(next.shortcuts) !== JSON.stringify(prev.shortcuts)) registerShortcuts(win, next.shortcuts)
+    if (JSON.stringify(next.shortcuts) !== JSON.stringify(prev.shortcuts)) registerShortcuts(win, next.shortcuts, cycleWindowSize)
     if (next.launchAtLogin !== prev.launchAtLogin) applyLoginItem(next)
     if (next.hideActivity !== prev.hideActivity) applyActivityPrivacy(win, next.hideActivity)
     if (next.accountServer !== prev.accountServer) account.serverChanged()
     tray?.update(next)
     win.webContents.send(IPC.settingsChanged, next)
     return next
+  }
+
+  /** Shortcut: Small → Medium → Large → Small. Shows the window if it was hidden. */
+  function cycleWindowSize() {
+    if (!win || win.isDestroyed()) return
+    showPassive(win)
+    updateSettings({ windowSize: nextWindowSize(store.get().windowSize, win.getBounds().width) })
   }
 
   async function exportSession(id: string): Promise<boolean> {
@@ -243,7 +259,10 @@ if (!app.requestSingleInstanceLock()) {
     // Nothing from this app in the macOS recent-documents list (it never adds to it; this clears
     // anything from older versions). On Windows the same call would clear the whole user's list.
     if (process.platform === 'darwin') app.clearRecentDocuments()
-    win = createOverlayWindow(store)
+    // Dragging the window to another size leaves the presets.
+    win = createOverlayWindow(store, () => {
+      if (store.get().windowSize !== 'custom') updateSettings({ windowSize: 'custom' })
+    })
     applyActivityPrivacy(win, settings.hideActivity)
     guard = new CaptureGuard(win)
     // Exclude from capture before the window is ever shown.
@@ -251,12 +270,16 @@ if (!app.requestSingleInstanceLock()) {
     setupMediaPermissions(win)
 
     registerIpc()
-    registerShortcuts(win, settings.shortcuts)
+    registerShortcuts(win, settings.shortcuts, cycleWindowSize)
     applyLoginItem(settings)
 
     tray = new AppTray(win, {
       setCaptureExclusion: (on) => updateSettings({ captureExclusion: on }),
       setHideActivity: (on) => updateSettings({ hideActivity: on }),
+      setWindowSize: (size) => {
+        if (win) showPassive(win)
+        updateSettings({ windowSize: size })
+      },
       quit: () => app.quit()
     })
     tray.update(settings)

@@ -16,7 +16,7 @@ export function sendCommand(win: BrowserWindow, cmd: UiCommand): void {
   win.webContents.executeJavaScript(js, true).catch(() => win.webContents.send(IPC.uiCommand, cmd))
 }
 
-export function registerShortcuts(win: BrowserWindow, shortcuts: ShortcutSettings): ShortcutStatus {
+export function registerShortcuts(win: BrowserWindow, shortcuts: ShortcutSettings, cycleWindowSize: () => void): ShortcutStatus {
   globalShortcut.unregisterAll()
 
   const actions: Record<keyof ShortcutSettings, () => void> = {
@@ -38,7 +38,8 @@ export function registerShortcuts(win: BrowserWindow, shortcuts: ShortcutSetting
     toggleListening: () => {
       showPassive(win)
       sendCommand(win, 'listen')
-    }
+    },
+    cycleWindowSize
   }
 
   const result = {} as ShortcutStatus

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CaptureStatus } from '../../shared/capture'
 import type { DisplayInfo, ShortcutStatus } from '../../shared/ipc'
 import { MIN_OPACITY, type Settings, type SettingsPatch, type ShortcutSettings } from '../../shared/settings'
+import { WINDOW_SIZE_IDS, WINDOW_SIZES } from '../../shared/windowSize'
 import { captureLabel } from '../captureLabels'
 import { ShieldIcon } from '../icons'
 import { ShortcutRecorder } from '../ShortcutRecorder'
@@ -13,7 +14,8 @@ const SHORTCUT_LABELS: Record<keyof ShortcutSettings, string> = {
   analyzeScreen: 'Analyze screen',
   toggleWindow: 'Show / hide window',
   focusInput: 'Show and focus input',
-  nextDisplay: 'Move to next display'
+  nextDisplay: 'Move to next display',
+  cycleWindowSize: 'Change window size'
 }
 
 export function GeneralTab({ settings, capture, update }: { settings: Settings; capture: CaptureStatus | null; update(p: SettingsPatch): Promise<unknown> }) {
@@ -81,6 +83,29 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
       />
 
       <h2>Window</h2>
+      {/* A div, not Row's <label>: a label would pass clicks on its text to the first button. */}
+      <div className="row">
+        <span className="row-text">
+          <span className="row-label">Window size</span>
+          <span className="row-hint">
+            {settings.windowSize === 'custom' ? 'Resized by dragging. ' : ''}Also from the title bar or the shortcut below.
+          </span>
+        </span>
+        <span className="size-choice" role="radiogroup" aria-label="Window size">
+          {WINDOW_SIZE_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={settings.windowSize === id}
+              className={`version-chip ${settings.windowSize === id ? 'active' : ''}`}
+              onClick={() => update({ windowSize: id })}
+            >
+              {WINDOW_SIZES[id].label}
+            </button>
+          ))}
+        </span>
+      </div>
       <Toggle label="Always on top" checked={settings.alwaysOnTop} onChange={(v) => update({ alwaysOnTop: v })} />
       <Row label="Opacity">
         <span className="slider">

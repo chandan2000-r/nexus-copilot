@@ -25,6 +25,7 @@ Works with Zoom, Google Meet, Microsoft Teams, Webex, and any app that plays aud
 | **Any model** | OpenAI and any OpenAI-compatible API (Groq, OpenRouter, DeepSeek, Together, LM Studio, vLLM), Anthropic Claude, Google Gemini, or local models through Ollama. "Load" fetches the provider's live model list; "Test connection" checks key + model. **Answer speed** (default: Fastest) turns down the hidden reasoning of GPT-5 / o-series, Gemini and local thinking models so answers start streaming sooner. Local models read the conversation ahead of time, so answers start in well under a second. |
 | **Session history** | Transcripts and answers are saved locally per session; browse, **search** (questions, answers, transcripts), a **Bookmarks** view across sessions, export to Markdown (bookmarks marked ★), or delete. |
 | **Overlay** | Frameless translucent window, always on top (non-activating panel on macOS, floats over full-screen apps and does not steal focus), opacity, display picker, remembered position, tray / menu-bar menu. |
+| **Window sizes** | **Small** (360×460), **Medium** (440×640, default) and **Large** (600×860), switched while Nexus runs: the **S / M / L** button in the title bar (cycles), the shortcut, the tray / menu-bar menu (Window Size) or Settings → General. The top edge and the side nearest the screen edge stay put; Large is reduced to fit smaller screens. Dragging the window edge still sets any size. |
 | **Out of recent activity** | On by default (Settings → General, or the menu-bar menu): on macOS Nexus has no Dock icon, so it is not in the Dock, the Dock's recent apps or Cmd+Tab (open it from the menu-bar icon or the shortcut); on Windows it has no taskbar button. Minimise hides the window instead of leaving it in the Dock / taskbar. Resume imports and session exports are not added to recent items, and the app's macOS recent-documents list is cleared at start. The OS's own record that an app was launched is left alone. |
 | **Capture exclusion** | `NSWindowSharingNone` on macOS, `WDA_EXCLUDEFROMCAPTURE` on Windows, set by a native addon and **verified by reading the value back**; live status pill. |
 | **Private by design** | API keys are encrypted with the OS key store (Keychain / DPAPI) and never reach the UI process. Everything is stored on this computer; audio, transcripts and screenshots go only to the providers you configure. |
@@ -39,6 +40,7 @@ Works with Zoom, Google Meet, Microsoft Teams, Webex, and any app that plays aud
 | Show / hide (without taking focus) | `Cmd/Ctrl + Shift + Space` |
 | Show and focus the input | `Cmd/Ctrl + Shift + J` |
 | Move to next display | `Cmd/Ctrl + Alt + Shift + M` |
+| Change window size (Small → Medium → Large) | `Cmd/Ctrl + Alt + Shift + W` |
 
 In the input box: `Enter` sends, `Cmd/Ctrl + Enter` answers the latest question, `Esc` stops an answer.
 

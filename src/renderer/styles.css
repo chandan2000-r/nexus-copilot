@@ -146,6 +146,24 @@ textarea {
   color: var(--text);
 }
 
+.size-btn span {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.size-choice {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .icon-btn.danger:hover {
   background: rgba(255, 107, 107, 0.18);
   color: var(--bad);
@@ -1519,4 +1537,28 @@ textarea.field {
 .bookmark-list .answer {
   max-height: 240px;
   overflow-y: auto;
+}
+
+/* ---------- Narrow window (Small size, or dragged narrow) ---------- */
+@media (max-width: 420px) {
+  .brand-name {
+    display: none;
+  }
+  .titlebar {
+    gap: 6px;
+    padding-left: 12px;
+  }
+  .controlbar {
+    gap: 4px;
+    padding: 8px;
+  }
+  .listen-btn {
+    padding: 0 10px;
+  }
+  .controlbar .chip {
+    padding: 0 7px;
+  }
+  .controlbar .chip > svg {
+    display: none;
+  }
 }

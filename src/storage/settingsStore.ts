@@ -15,6 +15,7 @@ import {
   type Settings,
   type SettingsPatch
 } from '../shared/settings'
+import { isWindowSize, presetFor } from '../shared/windowSize'
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 const MODES = ['interview', 'coding', 'meeting', 'sales', 'general']
@@ -32,6 +33,8 @@ export function sanitize(raw: Partial<Settings>): Settings {
     const { x, y, width, height } = s.bounds
     if (![x, y, width, height].every(Number.isFinite)) s.bounds = null
   }
+  // Settings saved before size presets existed: Medium if the window still has that size.
+  s.windowSize = isWindowSize(raw?.windowSize) ? raw.windowSize : presetFor(s.bounds)
   const d = DEFAULT_SETTINGS
   s.accountServer = normalizeServer(str(s.accountServer, d.accountServer, 500)) ?? d.accountServer
   if (!(s.ai.provider in LLM_PROVIDERS)) s.ai.provider = d.ai.provider

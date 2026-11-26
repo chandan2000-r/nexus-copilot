@@ -2,6 +2,7 @@ import { app, BrowserWindow, type Display, type Rectangle, screen } from 'electr
 import { join } from 'node:path'
 import type { DisplayInfo } from '../shared/ipc'
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH, type Settings } from '../shared/settings'
+import { fitWindow, WINDOW_SIZES, type WindowSizeId } from '../shared/windowSize'
 import type { SettingsStore } from '../storage/settingsStore'
 
 const MARGIN = 24
@@ -29,8 +30,9 @@ function placeOnDisplay(display: Display, width: number, height: number): Rectan
 }
 
 function initialBounds(s: Settings): Rectangle {
-  const width = s.bounds?.width ?? DEFAULT_WIDTH
-  const height = s.bounds?.height ?? DEFAULT_HEIGHT
+  const preset = s.windowSize === 'custom' ? null : WINDOW_SIZES[s.windowSize]
+  const width = preset?.width ?? s.bounds?.width ?? DEFAULT_WIDTH
+  const height = preset?.height ?? s.bounds?.height ?? DEFAULT_HEIGHT
   if (s.rememberPosition && s.bounds && isReachable(s.bounds)) return s.bounds
   const display =
     screen.getAllDisplays().find((d) => d.id === s.displayId) ?? screen.getPrimaryDisplay()
@@ -54,7 +56,19 @@ export function applyActivityPrivacy(win: BrowserWindow | null, hide: boolean): 
   }
 }
 
-export function createOverlayWindow(store: SettingsStore): BrowserWindow {
+/**
+ * Sets the window to one of the size presets while it runs. The top edge and the side nearest the
+ * screen edge stay put, and on a small screen the size is reduced to fit. Returns the new bounds.
+ */
+export function resizeWindow(win: BrowserWindow, size: WindowSizeId): Rectangle {
+  const current = win.getBounds()
+  const next = fitWindow(current, screen.getDisplayMatching(current).workArea, WINDOW_SIZES[size], MARGIN)
+  win.setBounds(next)
+  return next
+}
+
+/** `onUserResize` runs after the user resizes the window by dragging (not after `resizeWindow`). */
+export function createOverlayWindow(store: SettingsStore, onUserResize?: () => void): BrowserWindow {
   const s = store.get()
   const win = new BrowserWindow({
     ...initialBounds(s),
@@ -109,7 +123,10 @@ export function createOverlayWindow(store: SettingsStore): BrowserWindow {
     store.set({ bounds, displayId: screen.getDisplayMatching(bounds).id }, { debounce: true })
   }
   win.on('moved', persist)
-  win.on('resized', persist)
+  win.on('resized', () => {
+    persist()
+    onUserResize?.()
+  })
   win.on('move', persist)
 
   const rescue = () => {

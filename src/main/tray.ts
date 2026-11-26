@@ -1,5 +1,6 @@
 import { type BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import type { Settings } from '../shared/settings'
+import { WINDOW_SIZE_IDS, WINDOW_SIZES, type WindowSizeId } from '../shared/windowSize'
 import { sendCommand } from './shortcuts'
 import { moveToNextDisplay, showPassive, toggleVisibility } from './windowManager'
 
@@ -29,6 +30,7 @@ function trayIcon() {
 export interface TrayHandlers {
   setCaptureExclusion(on: boolean): void
   setHideActivity(on: boolean): void
+  setWindowSize(size: WindowSizeId): void
   quit(): void
 }
 
@@ -49,6 +51,15 @@ export class AppTray {
       Menu.buildFromTemplate([
         { label: 'Show / Hide Nexus AI', click: () => toggleVisibility(this.win) },
         { label: 'Move to Next Display', click: () => moveToNextDisplay(this.win) },
+        {
+          label: 'Window Size',
+          submenu: WINDOW_SIZE_IDS.map((id) => ({
+            label: WINDOW_SIZES[id].label,
+            type: 'radio' as const,
+            checked: settings.windowSize === id,
+            click: () => this.handlers.setWindowSize(id)
+          }))
+        },
         { type: 'separator' },
         { label: 'Start / Stop Listening', click: () => this.command('listen') },
         { label: 'Answer Latest Question', click: () => this.command('answer') },
