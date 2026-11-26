@@ -1,5 +1,6 @@
 import { app, BrowserWindow, type Display, type Rectangle, screen } from 'electron'
 import { join } from 'node:path'
+import { loadNativeModule } from '../native'
 import type { DisplayInfo } from '../shared/ipc'
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH, type Settings } from '../shared/settings'
 import { fitWindow, WINDOW_SIZES, type WindowSizeId } from '../shared/windowSize'
@@ -40,10 +41,11 @@ function initialBounds(s: Settings): Rectangle {
 }
 
 /**
- * Keeps the app out of recent activity, or brings it back. macOS: an "accessory" app has no Dock
- * icon, so it is not in the Dock, the Dock's recent apps or the Cmd+Tab switcher (the menu-bar
- * icon and the shortcuts still open it). Windows: no taskbar button. The OS's own record that
- * the app was launched is left alone.
+ * Keeps the app out of recent activity, or brings it back. macOS: the bundle is a menu-bar app
+ * (LSUIElement, electron-builder.yml), so it never has a Dock icon, not even while starting, and is
+ * not in the Dock, the Dock's recent apps, Cmd+Tab or the Apple menu's Recent Items. Turned off,
+ * it becomes a regular Dock app. Windows: no taskbar button and, as a tool window, not in Alt+Tab
+ * or Task View. Existing records the OS made earlier are left alone.
  */
 export function applyActivityPrivacy(win: BrowserWindow | null, hide: boolean): void {
   if (isMac) {
@@ -53,6 +55,11 @@ export function applyActivityPrivacy(win: BrowserWindow | null, hide: boolean): 
     if (visible) win!.showInactive()
   } else if (win && !win.isDestroyed()) {
     win.setSkipTaskbar(hide)
+    if (process.platform === 'win32') {
+      const native = loadNativeModule().module
+      const set = native?.setToolWindow?.(win.getNativeWindowHandle(), hide)
+      if (set !== hide) console.warn(`[activity] could not ${hide ? 'hide the window from' : 'return the window to'} Alt+Tab`)
+    }
   }
 }
 

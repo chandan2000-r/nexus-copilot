@@ -75,8 +75,8 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
         label="Keep out of recent activity"
         hint={
           window.nexus.platform === 'darwin'
-            ? 'No Dock icon, so Nexus is not in the Dock, its recent apps or Cmd+Tab; open it from the menu-bar icon or the shortcut. Minimise hides the window. Files you import or export are not added to recent items.'
-            : 'No taskbar button; minimise hides the window. Files you import or export are kept out of Recent items.'
+            ? "No Dock icon, so Nexus is not in the Dock, its recent apps, Cmd+Tab or the Apple menu's Recent Items; open it from the menu-bar icon or the shortcut. Minimise hides the window. Files you import or export are not added to recent items."
+            : 'No taskbar button, and not in Alt+Tab or Task View; minimise hides the window. Files you import or export are kept out of Recent items.'
         }
         checked={settings.hideActivity}
         onChange={(v) => update({ hideActivity: v })}

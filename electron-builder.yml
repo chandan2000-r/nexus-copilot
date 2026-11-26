@@ -21,6 +21,10 @@ mac:
       filter: ["*.node", "*.dylib"]
   category: public.app-category.productivity
   extendInfo:
+    # A menu-bar app: no Dock icon or Cmd+Tab entry from the moment it starts, so macOS does not add
+    # it to the Dock's recent apps or the Apple menu's Recent Items. With "Keep out of recent
+    # activity" turned off, the app switches itself to a regular Dock app at start.
+    LSUIElement: true
     NSMicrophoneUsageDescription: Nexus AI transcribes your microphone when "You" is turned on.
     NSAudioCaptureUsageDescription: Nexus AI transcribes the other side of your call from system audio.
   # Ad-hoc signed ("-"): no Apple certificate, but the bundle is sealed so a downloaded copy is not

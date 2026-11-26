@@ -20,6 +20,8 @@ export interface NativeCaptureModule {
   platform: string
   setCaptureExcluded(handle: Buffer, excluded: boolean): NativeCaptureResult
   getCaptureState(handle: Buffer): NativeCaptureResult
+  /** Windows only: keep the window out of Alt+Tab, Task View and the taskbar. Returns the style read back. */
+  setToolWindow?(handle: Buffer, on: boolean): boolean
 }
 
 export interface NativeLoadResult {
