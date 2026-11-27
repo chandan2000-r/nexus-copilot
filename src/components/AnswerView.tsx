@@ -130,7 +130,8 @@ function EmptyState({ settings, secrets, onOpenSettings }: Omit<Props, 'copilot'
     ['Start / stop listening', sc.toggleListening],
     ['Answer the latest question', sc.answerNow],
     ['Solve what is on screen', sc.analyzeScreen],
-    ['Show / hide this window', sc.toggleWindow]
+    ['Show / hide this window', sc.toggleWindow],
+    ['Click-through on / off', sc.toggleClickThrough]
   ]
   return (
     <div className="empty-state">
@@ -171,6 +172,17 @@ export function AnswerView({ copilot, settings, secrets, onOpenSettings }: Props
   useEffect(() => {
     pin.current = lastUser ?? null
   }, [lastUser])
+  // Scroll shortcuts (for click-through, when the mouse wheel cannot reach the window).
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      const el = box.current
+      if (!el) return
+      pin.current = null // the user is reading: stop keeping the newest question at the top
+      el.scrollBy({ top: (e as CustomEvent<number>).detail * Math.max(80, el.clientHeight * 0.8), behavior: 'smooth' })
+    }
+    window.addEventListener('nexus-scroll', onScroll)
+    return () => window.removeEventListener('nexus-scroll', onScroll)
+  }, [])
   useEffect(() => {
     const el = box.current
     const id = pin.current

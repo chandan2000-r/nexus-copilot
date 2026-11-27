@@ -176,6 +176,15 @@ export function createOverlayWindow(store: SettingsStore, onUserResize?: () => v
   return win
 }
 
+/**
+ * Click-through: the window ignores the mouse. The pointer passes through to the app underneath,
+ * keeps that app's shape and never clicks on Nexus, so moving it does not show anything about
+ * Nexus. The keyboard shortcuts still work.
+ */
+export function applyClickThrough(win: BrowserWindow, on: boolean): void {
+  if (!win.isDestroyed()) win.setIgnoreMouseEvents(on)
+}
+
 export function applyAlwaysOnTop(win: BrowserWindow, on: boolean): void {
   if (isMac) {
     win.setAlwaysOnTop(on, 'floating')

@@ -197,6 +197,26 @@ textarea {
   display: none;
 }
 
+.through-pill {
+  -webkit-app-region: drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 140, 255, 0.45);
+  background: rgba(124, 140, 255, 0.12);
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.through-pill kbd {
+  font: inherit;
+  color: var(--text-dim);
+}
+
 .size-choice {
   display: flex;
   gap: 4px;

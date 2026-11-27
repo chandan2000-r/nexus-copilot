@@ -5,7 +5,7 @@ import { MIN_OPACITY, type Settings, type SettingsPatch, type ShortcutSettings }
 import { WINDOW_SIZE_IDS, WINDOW_SIZES } from '../../shared/windowSize'
 import { captureLabel } from '../captureLabels'
 import { ShieldIcon } from '../icons'
-import { ShortcutRecorder } from '../ShortcutRecorder'
+import { prettyAccelerator, ShortcutRecorder } from '../ShortcutRecorder'
 import { Row, Toggle } from './fields'
 
 const SHORTCUT_LABELS: Record<keyof ShortcutSettings, string> = {
@@ -15,7 +15,10 @@ const SHORTCUT_LABELS: Record<keyof ShortcutSettings, string> = {
   toggleWindow: 'Show / hide window',
   focusInput: 'Show and focus input',
   nextDisplay: 'Move to next display',
-  cycleWindowSize: 'Change window size'
+  cycleWindowSize: 'Change window size',
+  toggleClickThrough: 'Click-through on / off',
+  scrollAnswerUp: 'Scroll answers up',
+  scrollAnswerDown: 'Scroll answers down'
 }
 
 export function GeneralTab({ settings, capture, update }: { settings: Settings; capture: CaptureStatus | null; update(p: SettingsPatch): Promise<unknown> }) {
@@ -120,6 +123,12 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
           <output>{Math.round(settings.opacity * 100)}%</output>
         </span>
       </Row>
+      <Toggle
+        label="Click-through"
+        hint={`The pointer passes through Nexus to the app underneath: it keeps that app's shape and never clicks Nexus, so moving it shows nothing about Nexus. Control Nexus with the shortcuts below (scroll answers with ${prettyAccelerator(settings.shortcuts.scrollAnswerUp)} / ${prettyAccelerator(settings.shortcuts.scrollAnswerDown)}). Turn it off with ${prettyAccelerator(settings.shortcuts.toggleClickThrough)} or the menu-bar icon.`}
+        checked={settings.clickThrough}
+        onChange={(v) => update({ clickThrough: v })}
+      />
       <Toggle label="Always on top" checked={settings.alwaysOnTop} onChange={(v) => update({ alwaysOnTop: v })} />
       <Toggle label="Remember position and size" checked={settings.rememberPosition} onChange={(v) => update({ rememberPosition: v })} />
       <Row label="Display">

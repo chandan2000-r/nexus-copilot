@@ -53,6 +53,8 @@ export function prettyAccelerator(acc: string): string {
       if (isMac && p === 'Control') return '⌃'
       if (isMac && p === 'Alt') return '⌥'
       if (isMac && p === 'Shift') return '⇧'
+      if (p === 'Up') return '↑'
+      if (p === 'Down') return '↓'
       return p
     })
     .join(isMac ? '' : '+')

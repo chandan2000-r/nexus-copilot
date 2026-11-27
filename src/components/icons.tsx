@@ -27,6 +27,13 @@ export const EyeOffIcon = (p: SVGProps<SVGSVGElement>) => (
     <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 )
+/** A pointer arrow with a pass-through mark (click-through). */
+export const PointerIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M4 3l7 17 2.5-7.5L21 10z" />
+    <line x1="14" y1="14" x2="20" y2="20" strokeDasharray="2 2" />
+  </svg>
+)
 export const OpacityIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <circle cx="12" cy="12" r="9" />

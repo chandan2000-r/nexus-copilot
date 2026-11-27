@@ -3,7 +3,8 @@ import type { CaptureStatus } from '../shared/capture'
 import { MIN_OPACITY } from '../shared/settings'
 import { nextWindowSize, WINDOW_SIZES, type WindowSize } from '../shared/windowSize'
 import { captureLabel } from './captureLabels'
-import { CloseIcon, EyeOffIcon, GearIcon, HistoryIcon, MinusIcon, OpacityIcon } from './icons'
+import { CloseIcon, EyeOffIcon, GearIcon, HistoryIcon, MinusIcon, OpacityIcon, PointerIcon } from './icons'
+import { prettyAccelerator } from './ShortcutRecorder'
 
 export type View = 'main' | 'settings' | 'history'
 
@@ -15,6 +16,8 @@ interface Props {
   locked?: boolean
   windowSize: WindowSize
   opacity: number
+  /** Click-through is on: nothing in the window can be clicked, so the buttons give way to how to turn it off. */
+  clickThrough?: { shortcut: string }
 }
 
 const SIZE_LETTER: Record<WindowSize, string> = { small: 'S', medium: 'M', large: 'L', full: 'F', custom: '·' }
@@ -71,7 +74,7 @@ function OpacityControl({ opacity }: { opacity: number }) {
   )
 }
 
-export function TitleBar({ capture, view, onView, locked = false, windowSize, opacity }: Props) {
+export function TitleBar({ capture, view, onView, locked = false, windowSize, opacity, clickThrough }: Props) {
   const label = captureLabel(capture)
   const toggle = (v: View) => onView(view === v ? 'main' : v)
   const nextSize = nextWindowSize(windowSize, window.innerWidth)
@@ -87,6 +90,16 @@ export function TitleBar({ capture, view, onView, locked = false, windowSize, op
         <span className="pill-long">{label.text}</span>
         <span className="pill-short">{label.short}</span>
       </span>
+      {clickThrough ? (
+        <span
+          className="through-pill"
+          title={`Click-through is on: the pointer passes through Nexus. Press ${prettyAccelerator(clickThrough.shortcut)} or use the menu-bar icon to turn it off.`}
+        >
+          <PointerIcon width={13} height={13} />
+          <span className="through-text">Click-through</span>
+          <kbd>{prettyAccelerator(clickThrough.shortcut)}</kbd>
+        </span>
+      ) : (
       <div className="window-buttons">
         {!locked && (
           <>
@@ -129,6 +142,7 @@ export function TitleBar({ capture, view, onView, locked = false, windowSize, op
           <CloseIcon />
         </button>
       </div>
+      )}
     </header>
   )
 }

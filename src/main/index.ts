@@ -34,6 +34,7 @@ import { AppTray } from './tray'
 import {
   applyActivityPrivacy,
   applyAlwaysOnTop,
+  applyClickThrough,
   createOverlayWindow,
   listDisplays,
   moveToDisplay,
@@ -89,7 +90,8 @@ if (!app.requestSingleInstanceLock()) {
     if (next.captureExclusion !== prev.captureExclusion) {
       win.webContents.send(IPC.captureStatusChanged, guard!.apply(next.captureExclusion))
     }
-    if (JSON.stringify(next.shortcuts) !== JSON.stringify(prev.shortcuts)) registerShortcuts(win, next.shortcuts, cycleWindowSize)
+    if (JSON.stringify(next.shortcuts) !== JSON.stringify(prev.shortcuts)) registerShortcuts(win, next.shortcuts, shortcutHandlers)
+    if (next.clickThrough !== prev.clickThrough) applyClickThrough(win, next.clickThrough)
     if (next.launchAtLogin !== prev.launchAtLogin) applyLoginItem(next)
     if (next.hideActivity !== prev.hideActivity) applyActivityPrivacy(win, next.hideActivity)
     if (next.accountServer !== prev.accountServer) account.serverChanged()
@@ -98,7 +100,16 @@ if (!app.requestSingleInstanceLock()) {
     return next
   }
 
-  /** Shortcut: Small → Medium → Large → Small. Shows the window if it was hidden. */
+  const shortcutHandlers = {
+    cycleWindowSize: () => cycleWindowSize(),
+    // Shows the window too: turning click-through on or off is only useful while Nexus is visible.
+    toggleClickThrough: () => {
+      if (win && !win.isDestroyed()) showPassive(win)
+      updateSettings({ clickThrough: !store.get().clickThrough })
+    }
+  }
+
+  /** Shortcut: Small → Medium → Large → Full → Small. Shows the window if it was hidden. */
   function cycleWindowSize() {
     if (!win || win.isDestroyed()) return
     showPassive(win)
@@ -264,18 +275,20 @@ if (!app.requestSingleInstanceLock()) {
       if (store.get().windowSize !== 'custom') updateSettings({ windowSize: 'custom' })
     })
     applyActivityPrivacy(win, settings.hideActivity)
+    applyClickThrough(win, settings.clickThrough)
     guard = new CaptureGuard(win)
     // Exclude from capture before the window is ever shown.
     guard.apply(settings.captureExclusion)
     setupMediaPermissions(win)
 
     registerIpc()
-    registerShortcuts(win, settings.shortcuts, cycleWindowSize)
+    registerShortcuts(win, settings.shortcuts, shortcutHandlers)
     applyLoginItem(settings)
 
     tray = new AppTray(win, {
       setCaptureExclusion: (on) => updateSettings({ captureExclusion: on }),
       setHideActivity: (on) => updateSettings({ hideActivity: on }),
+      setClickThrough: (on) => updateSettings({ clickThrough: on }),
       setWindowSize: (size) => {
         if (win) showPassive(win)
         updateSettings({ windowSize: size })

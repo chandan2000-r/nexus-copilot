@@ -31,6 +31,7 @@ export interface TrayHandlers {
   setCaptureExclusion(on: boolean): void
   setHideActivity(on: boolean): void
   setWindowSize(size: WindowSizeId): void
+  setClickThrough(on: boolean): void
   quit(): void
 }
 
@@ -65,6 +66,12 @@ export class AppTray {
         { label: 'Answer Latest Question', click: () => this.command('answer') },
         { label: 'Analyze Screen', click: () => this.command('screen') },
         { type: 'separator' },
+        {
+          label: 'Click-Through (Pointer Passes Through)',
+          type: 'checkbox',
+          checked: settings.clickThrough,
+          click: (item) => this.handlers.setClickThrough(item.checked)
+        },
         {
           label: 'Hide from Screen Capture',
           type: 'checkbox',

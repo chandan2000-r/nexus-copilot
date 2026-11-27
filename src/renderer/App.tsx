@@ -51,6 +51,9 @@ export function App() {
     } else if (cmd === 'screen') {
       setView('main')
       void copilot.analyzeScreen()
+    } else if (cmd === 'scrollUp' || cmd === 'scrollDown') {
+      setView('main')
+      window.dispatchEvent(new CustomEvent('nexus-scroll', { detail: cmd === 'scrollUp' ? -1 : 1 }))
     }
   }
   useEffect(() => {
@@ -83,7 +86,15 @@ export function App() {
   if (!signedIn) {
     return (
       <div className="shell">
-        <TitleBar capture={capture} view="main" onView={() => {}} locked windowSize={settings.windowSize} opacity={settings.opacity} />
+        <TitleBar
+          capture={capture}
+          view="main"
+          onView={() => {}}
+          locked
+          windowSize={settings.windowSize}
+          opacity={settings.opacity}
+          clickThrough={settings.clickThrough ? { shortcut: settings.shortcuts.toggleClickThrough } : undefined}
+        />
         <LoginPage account={account} onServer={(server) => window.nexus.updateSettings({ accountServer: server })} />
       </div>
     )
@@ -91,7 +102,14 @@ export function App() {
 
   return (
     <div className="shell">
-      <TitleBar capture={capture} view={view} onView={setView} windowSize={settings.windowSize} opacity={settings.opacity} />
+      <TitleBar
+        capture={capture}
+        view={view}
+        onView={setView}
+        windowSize={settings.windowSize}
+        opacity={settings.opacity}
+        clickThrough={settings.clickThrough ? { shortcut: settings.shortcuts.toggleClickThrough } : undefined}
+      />
       {view === 'settings' && (
         <SettingsPanel
           settings={settings}

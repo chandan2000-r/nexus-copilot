@@ -88,3 +88,25 @@ describe('window size setting', () => {
     expect(s.shortcuts.cycleWindowSize).toBe('CommandOrControl+Alt+Shift+W')
   })
 })
+
+describe('click-through setting', () => {
+  it('is off by default, kept when set, and repaired when invalid', () => {
+    expect(DEFAULT_SETTINGS.clickThrough).toBe(false)
+    expect(sanitize({ clickThrough: true }).clickThrough).toBe(true)
+    expect(sanitize({ clickThrough: 'yes' as never }).clickThrough).toBe(false)
+  })
+
+  it('adds the click-through and scroll shortcuts to saved shortcuts', () => {
+    const old = { ...DEFAULT_SETTINGS.shortcuts } as Record<string, string>
+    delete old.toggleClickThrough
+    delete old.scrollAnswerUp
+    delete old.scrollAnswerDown
+    const s = sanitize({ shortcuts: old as never })
+    expect(s.shortcuts.toggleClickThrough).toBe('CommandOrControl+Alt+Shift+C')
+    expect(s.shortcuts.scrollAnswerUp).toBe('CommandOrControl+Alt+Shift+Up')
+    expect(s.shortcuts.scrollAnswerDown).toBe('CommandOrControl+Alt+Shift+Down')
+    // No two actions share a default shortcut.
+    const all = Object.values(DEFAULT_SETTINGS.shortcuts)
+    expect(new Set(all).size).toBe(all.length)
+  })
+})

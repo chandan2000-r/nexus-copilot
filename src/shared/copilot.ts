@@ -93,4 +93,4 @@ export interface ScreenCapture {
 }
 
 /** Commands sent from global shortcuts / tray to the renderer. */
-export type UiCommand = 'answer' | 'screen' | 'listen' | 'focus'
+export type UiCommand = 'answer' | 'screen' | 'listen' | 'focus' | 'scrollUp' | 'scrollDown'

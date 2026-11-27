@@ -23,6 +23,11 @@ export interface ShortcutSettings {
   toggleListening: string
   /** Switch the window between the small, medium, large and full sizes. */
   cycleWindowSize: string
+  /** Turn click-through on or off (the pointer passes through the window). */
+  toggleClickThrough: string
+  /** Scroll the answers without the mouse (for click-through). */
+  scrollAnswerUp: string
+  scrollAnswerDown: string
 }
 
 /** Chat / answer providers. 'openai' is any OpenAI-compatible API (OpenAI, Groq, OpenRouter, LM Studio…). */
@@ -100,6 +105,11 @@ export interface Settings {
    * macOS, no taskbar button on Windows, and its recent-documents list cleared.
    */
   hideActivity: boolean
+  /**
+   * Click-through: the window ignores the mouse, so the pointer passes through to the app underneath
+   * and keeps that app's shape. Nexus is then controlled with the shortcuts.
+   */
+  clickThrough: boolean
   /** 0.3 – 1.0 */
   opacity: number
   /** Window size preset in use, or 'custom' after the window was resized by dragging. */
@@ -127,6 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: true,
   captureExclusion: true,
   hideActivity: true,
+  clickThrough: false,
   opacity: 0.96,
   windowSize: 'medium',
   shortcuts: {
@@ -136,7 +147,10 @@ export const DEFAULT_SETTINGS: Settings = {
     answerNow: 'CommandOrControl+Shift+Return',
     analyzeScreen: 'CommandOrControl+Shift+H',
     toggleListening: 'CommandOrControl+Shift+L',
-    cycleWindowSize: 'CommandOrControl+Alt+Shift+W'
+    cycleWindowSize: 'CommandOrControl+Alt+Shift+W',
+    toggleClickThrough: 'CommandOrControl+Alt+Shift+C',
+    scrollAnswerUp: 'CommandOrControl+Alt+Shift+Up',
+    scrollAnswerDown: 'CommandOrControl+Alt+Shift+Down'
   },
   launchAtLogin: false,
   startHidden: false,
