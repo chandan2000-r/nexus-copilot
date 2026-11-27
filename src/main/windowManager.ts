@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { loadNativeModule } from '../native'
 import type { DisplayInfo } from '../shared/ipc'
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH, type Settings } from '../shared/settings'
-import { fitWindow, WINDOW_SIZES, type WindowSizeId } from '../shared/windowSize'
+import { fillsWorkArea, fitWindow, WINDOW_SIZES, type WindowSizeId } from '../shared/windowSize'
 import type { SettingsStore } from '../storage/settingsStore'
 
 const MARGIN = 24
@@ -37,8 +37,12 @@ function initialBounds(s: Settings): Rectangle {
   if (s.rememberPosition && s.bounds && isReachable(s.bounds)) return s.bounds
   const display =
     screen.getAllDisplays().find((d) => d.id === s.displayId) ?? screen.getPrimaryDisplay()
+  if (s.windowSize === 'full') return display.workArea
   return placeOnDisplay(display, width, height)
 }
+
+/** Where each window was before it went Full, so leaving Full puts it back there. */
+const beforeFull = new WeakMap<BrowserWindow, Rectangle>()
 
 /**
  * Keeps the app out of recent activity, or brings it back. macOS: the bundle is a menu-bar app
@@ -69,7 +73,23 @@ export function applyActivityPrivacy(win: BrowserWindow | null, hide: boolean): 
  */
 export function resizeWindow(win: BrowserWindow, size: WindowSizeId): Rectangle {
   const current = win.getBounds()
-  const next = fitWindow(current, screen.getDisplayMatching(current).workArea, WINDOW_SIZES[size], MARGIN)
+  const display = screen.getDisplayMatching(current)
+  const wa = display.workArea
+  const wasFull = fillsWorkArea(current, wa)
+  let next: Rectangle
+  if (size === 'full') {
+    if (!wasFull) beforeFull.set(win, current)
+    next = { ...wa }
+  } else if (wasFull) {
+    // Leaving Full: back where the window was before, at the new size (docked top-right if unknown,
+    // e.g. after a restart in Full).
+    const before = beforeFull.get(win)
+    const preset = WINDOW_SIZES[size]
+    next = before ? fitWindow(before, wa, preset, MARGIN) : placeOnDisplay(display, preset.width, preset.height)
+    beforeFull.delete(win)
+  } else {
+    next = fitWindow(current, wa, WINDOW_SIZES[size], MARGIN)
+  }
   win.setBounds(next)
   return next
 }
@@ -193,6 +213,11 @@ export function moveToDisplay(win: BrowserWindow, displayId: number): boolean {
   if (!target) return false
   const current = screen.getDisplayMatching(win.getBounds())
   const b = win.getBounds()
+  // A Full window fills the other display too.
+  if (fillsWorkArea(b, current.workArea)) {
+    win.setBounds(target.workArea)
+    return true
+  }
   // Keep the same relative position inside the work area.
   const relX = (b.x - current.workArea.x) / Math.max(1, current.workArea.width - b.width)
   const relY = (b.y - current.workArea.y) / Math.max(1, current.workArea.height - b.height)

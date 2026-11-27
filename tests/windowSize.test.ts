@@ -1,23 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS } from '../src/shared/settings'
-import { fitWindow, nextWindowSize, presetFor, WINDOW_SIZES } from '../src/shared/windowSize'
+import { fillsWorkArea, fitWindow, nextWindowSize, presetFor, WINDOW_SIZES } from '../src/shared/windowSize'
 import { sanitize } from '../src/storage/settingsStore'
 
 // A 1440×900 MacBook screen below a 25 px menu bar.
 const WA = { x: 0, y: 25, width: 1440, height: 875 }
 
 describe('window size presets', () => {
-  it('cycles Small → Medium → Large → Small', () => {
+  it('cycles Small → Medium → Large → Full → Small', () => {
     expect(nextWindowSize('small', 360)).toBe('medium')
     expect(nextWindowSize('medium', 440)).toBe('large')
-    expect(nextWindowSize('large', 600)).toBe('small')
+    expect(nextWindowSize('large', 600)).toBe('full')
+    expect(nextWindowSize('full', 1440)).toBe('small')
+  })
+
+  it('Full fills the whole work area of the screen it is on', () => {
+    const docked = { x: 1440 - 24 - 440, y: 97, width: 440, height: 640 }
+    const full = fitWindow(docked, WA, WINDOW_SIZES.full, 0)
+    expect(full).toEqual(WA)
+    expect(fillsWorkArea(full, WA)).toBe(true)
+    expect(fillsWorkArea(docked, WA)).toBe(false)
+    expect(fillsWorkArea({ ...WA, width: WA.width - 1 }, WA)).toBe(true) // rounding
+    expect(presetFor({ width: 1440, height: 875 })).toBe('custom') // Full is only ever chosen, not guessed
   })
 
   it('from a dragged size goes to the next preset wider than the window', () => {
     expect(nextWindowSize('custom', 320)).toBe('small')
     expect(nextWindowSize('custom', 400)).toBe('medium')
     expect(nextWindowSize('custom', 500)).toBe('large')
-    expect(nextWindowSize('custom', 900)).toBe('small')
+    expect(nextWindowSize('custom', 900)).toBe('full')
   })
 
   it('recognises a preset size, allowing for rounding', () => {
@@ -61,6 +72,7 @@ describe('window size setting', () => {
     expect(DEFAULT_SETTINGS.windowSize).toBe('medium')
     expect(sanitize({ windowSize: 'large' }).windowSize).toBe('large')
     expect(sanitize({ windowSize: 'custom' }).windowSize).toBe('custom')
+    expect(sanitize({ windowSize: 'full' }).windowSize).toBe('full')
   })
 
   it('works out the size for settings saved before presets existed', () => {

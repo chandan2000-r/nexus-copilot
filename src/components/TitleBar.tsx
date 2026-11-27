@@ -17,7 +17,7 @@ interface Props {
   opacity: number
 }
 
-const SIZE_LETTER: Record<WindowSize, string> = { small: 'S', medium: 'M', large: 'L', custom: '·' }
+const SIZE_LETTER: Record<WindowSize, string> = { small: 'S', medium: 'M', large: 'L', full: 'F', custom: '·' }
 
 /** Opacity button next to the size button: opens a slider that changes the window as you drag. */
 function OpacityControl({ opacity }: { opacity: number }) {

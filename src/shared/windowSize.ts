@@ -1,7 +1,7 @@
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH } from './settings'
 
-/** The three window sizes the user can switch between while the app runs. */
-export type WindowSizeId = 'small' | 'medium' | 'large'
+/** The window sizes the user can switch between while the app runs. */
+export type WindowSizeId = 'small' | 'medium' | 'large' | 'full'
 /** 'custom': the user dragged the window to some other size. */
 export type WindowSize = WindowSizeId | 'custom'
 
@@ -14,10 +14,12 @@ export interface Rect extends Size {
   y: number
 }
 
+/** Full is as large as the screen allows: the whole work area (the screen minus menu bar and Dock / taskbar). */
 export const WINDOW_SIZES: Record<WindowSizeId, Size & { label: string }> = {
   small: { label: 'Small', width: 360, height: 460 },
   medium: { label: 'Medium', width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT },
-  large: { label: 'Large', width: 600, height: 860 }
+  large: { label: 'Large', width: 600, height: 860 },
+  full: { label: 'Full', width: Infinity, height: Infinity }
 }
 export const WINDOW_SIZE_IDS = Object.keys(WINDOW_SIZES) as WindowSizeId[]
 
@@ -25,8 +27,14 @@ export function isWindowSize(v: unknown): v is WindowSize {
   return v === 'custom' || (typeof v === 'string' && v in WINDOW_SIZES)
 }
 
+/** True when the window covers the whole work area (allowing for rounding). */
+export function fillsWorkArea(bounds: Rect, workArea: Rect): boolean {
+  const near = (a: number, b: number) => Math.abs(a - b) <= 2
+  return near(bounds.x, workArea.x) && near(bounds.y, workArea.y) && near(bounds.width, workArea.width) && near(bounds.height, workArea.height)
+}
+
 /**
- * The size after `current` when cycling Small → Medium → Large → Small. From a dragged (custom)
+ * The size after `current` when cycling Small → Medium → Large → Full → Small. From a dragged (custom)
  * size it goes to the first preset wider than the window, so the window always visibly changes.
  */
 export function nextWindowSize(current: WindowSize, width: number): WindowSizeId {

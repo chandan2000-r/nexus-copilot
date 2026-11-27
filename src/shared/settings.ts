@@ -21,7 +21,7 @@ export interface ShortcutSettings {
   analyzeScreen: string
   /** Start or stop listening. */
   toggleListening: string
-  /** Switch the window between the small, medium and large sizes. */
+  /** Switch the window between the small, medium, large and full sizes. */
   cycleWindowSize: string
 }
 

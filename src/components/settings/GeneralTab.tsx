@@ -88,7 +88,7 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
         <span className="row-text">
           <span className="row-label">Window size</span>
           <span className="row-hint">
-            {settings.windowSize === 'custom' ? 'Resized by dragging. ' : ''}Also from the S / M / L button in the title bar or the shortcut below.
+            {settings.windowSize === 'custom' ? 'Resized by dragging. ' : ''}Full fills the screen. Also from the S / M / L / F button in the title bar or the shortcut below.
           </span>
         </span>
         <span className="size-choice" role="radiogroup" aria-label="Window size">
