@@ -27,6 +27,12 @@ export const EyeOffIcon = (p: SVGProps<SVGSVGElement>) => (
     <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 )
+export const OpacityIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" />
+  </svg>
+)
 export const MinusIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <line x1="5" y1="12" x2="19" y2="12" />

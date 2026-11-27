@@ -184,10 +184,23 @@ describe('answer shape', () => {
   it('follows the answer style and asks for more than a bare one-liner', () => {
     const spoken = answerPrompt('How does HTTPS keep data secure?', 'You: How does HTTPS keep data secure?')
     expect(spoken).toMatch(/"Them" just said: "How does HTTPS keep data secure\?"/)
-    expect(spoken).toMatch(/answer in the first sentence, then two or three sentences on how it works, with a concrete example/)
+    expect(spoken).toMatch(/2 to 4 bullet points, as they would say it: the answer first, then how it works, then a concrete example/)
     expect(spoken).toMatch(/Do not repeat the question\.$/)
     expect(answerPrompt('Why?', '', 'bullets')).toMatch(/3 to 5 short bullet points/)
-    expect(answerPrompt('Why?', '', 'star')).toMatch(/STAR story/)
+    expect(answerPrompt('Why?', '', 'star')).toMatch(/four bullets, \*\*Situation\*\*/)
+    expect(answerPrompt('How does a Kubernetes readiness probe work?', '', 'detailed')).toMatch(/5 to 8 Markdown bullet points.*the first bullet is the direct answer/)
+  })
+
+  it('asks for bullet points in every answer style, mode and the system prompt', () => {
+    for (const style of ['concise', 'detailed', 'star', 'bullets'] as const) {
+      expect(answerPrompt('What is a VPC?', '', style)).toMatch(/bullet/)
+      for (const mode of ['quick', 'interview', 'detailed'] as const) expect(answerPrompt('What is a VPC?', '', style, mode)).toMatch(/bullet/)
+    }
+    const sys = systemPrompt({ ...DEFAULT_SETTINGS.copilot }, DEFAULT_SETTINGS.profile)
+    expect(sys).toMatch(/Format every answer as Markdown bullet points/)
+    expect(sys).toMatch(/Only when the user asks for a specific format \(an email, a message, a script\)/)
+    // Code still comes as code, with bullets after it.
+    expect(answerPrompt('Write a Python script for log rotation.', '', 'detailed')).toMatch(/fenced code block, then one or two bullets/)
   })
 })
 

@@ -83,7 +83,7 @@ export function App() {
   if (!signedIn) {
     return (
       <div className="shell">
-        <TitleBar capture={capture} view="main" onView={() => {}} locked windowSize={settings.windowSize} />
+        <TitleBar capture={capture} view="main" onView={() => {}} locked windowSize={settings.windowSize} opacity={settings.opacity} />
         <LoginPage account={account} onServer={(server) => window.nexus.updateSettings({ accountServer: server })} />
       </div>
     )
@@ -91,7 +91,7 @@ export function App() {
 
   return (
     <div className="shell">
-      <TitleBar capture={capture} view={view} onView={setView} windowSize={settings.windowSize} />
+      <TitleBar capture={capture} view={view} onView={setView} windowSize={settings.windowSize} opacity={settings.opacity} />
       {view === 'settings' && (
         <SettingsPanel
           settings={settings}

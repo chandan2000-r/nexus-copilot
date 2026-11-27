@@ -12,20 +12,30 @@ Works with Zoom, Google Meet, Microsoft Teams, Webex, and any app that plays aud
 > depends on the app and OS version: read [docs/CAPTURE_EXCLUSION.md](docs/CAPTURE_EXCLUSION.md)
 > and record real results in [docs/TEST_MATRIX.md](docs/TEST_MATRIX.md). **Do not assume universal invisibility.**
 
+## Download
+
+Always the newest version, no GitHub account needed:
+
+- **Mac** (Apple Silicon, M1 or later): <https://github.com/chandan2000-r/nexus-copilot/releases/latest/download/Nexus-AI-mac-arm64.dmg>
+- **Windows 10 / 11** (64-bit): <https://github.com/chandan2000-r/nexus-copilot/releases/latest/download/Nexus-AI-Setup-x64.exe>
+
+Release notes and install steps: <https://github.com/chandan2000-r/nexus-copilot/releases/latest>
+
 ## Features
 
 | | |
 |---|---|
 | **Live transcription** | System audio ("Them": the other side of the call) and your microphone ("You"), labelled per speaker. Default: NVIDIA Parakeet **on this computer** (free, no key, words appear while people talk, ~0.1 s per sentence). Also Whisper-compatible APIs (OpenAI, Groq, local servers), Deepgram real-time streaming, or Google Gemini for 25 languages. |
 | **Auto-answer** | Detects when the other side finishes a question and streams an answer immediately. Toggle with **⚡ Auto**; or answer on demand with the ⚡ button / shortcut. Newest question always wins. Only the newest question is answered (not remarks before it), a cough or typing after a question does not hold the answer back, and requests for a script, query or command always get code, whatever the answer style. |
-| **Answer actions** | Under every answer: **Auto / Quick / Interview / Detailed** (Quick: 2–4 sentences; Interview: a 30–60 s spoken answer; Detailed: commands, configuration, trade-offs). Each version is written once for the same question and transcript and kept, so switching back is instant. Also **Regenerate**, **Bookmark**, **Read aloud** (the system voice; Nexus's own voice is kept out of the transcript) and **Copy**. |
+| **Bullet-point answers** | Every answer is a list of bullet points to glance at while talking: the first bullet is the direct answer, then how it works, the trade-off and an example. Commands, code and configuration come in a code block of their own; a request to write an email or message gets ready-to-send text instead. If a small local model starts repeating itself, the answer is ended and the repeated lines are not shown. |
+| **Answer actions** | Under every answer: **Auto / Quick / Interview / Detailed** (Quick: 2–4 short bullets; Interview: 3–6 first-person talking points for a 30–60 s answer; Detailed: technical bullets with commands, configuration, trade-offs). Each version is written once for the same question and transcript and kept, so switching back is instant. Also **Regenerate**, **Bookmark**, **Read aloud** (the system voice; Nexus's own voice is kept out of the transcript) and **Copy**. |
 | **Personal answers** | Resume (paste or import PDF / Markdown / text), job description, target role, company and your own instructions go into every request. The prompt forbids inventing employers, numbers or credentials that are not in your profile. |
-| **Modes and styles** | Interview, Coding interview, Meeting, Sales call, General. Answer styles: Detailed (default: technical, how it works under the hood, trade-offs, exact commands and config), Concise, STAR, Bullets. Answer language can be fixed or follow the question. |
+| **Modes and styles** | Interview, Coding interview, Meeting, Sales call, General. Answer styles, all as bullet points: Detailed (default: 5–8 technical bullets, how it works under the hood, trade-offs, exact commands and config), Concise (2–4 bullets), STAR (one bullet each for Situation, Task, Action, Result), Bullets (short, under 15 words each). Answer language can be fixed or follow the question. |
 | **Screen analysis** | One shortcut screenshots the display the overlay is on (the overlay itself is excluded) and sends it to a vision model: approach, code, complexity for coding problems; key points for anything else. |
 | **Any model** | OpenAI and any OpenAI-compatible API (Groq, OpenRouter, DeepSeek, Together, LM Studio, vLLM), Anthropic Claude, Google Gemini, or local models through Ollama. "Load" fetches the provider's live model list; "Test connection" checks key + model. **Answer speed** (default: Fastest) turns down the hidden reasoning of GPT-5 / o-series, Gemini and local thinking models so answers start streaming sooner. Local models read the conversation ahead of time, so answers start in well under a second. |
 | **Session history** | Transcripts and answers are saved locally per session; browse, **search** (questions, answers, transcripts), a **Bookmarks** view across sessions, export to Markdown (bookmarks marked ★), or delete. |
 | **Overlay** | Frameless translucent window, always on top (non-activating panel on macOS, floats over full-screen apps and does not steal focus), opacity, display picker, remembered position, tray / menu-bar menu. |
-| **Window sizes** | **Small** (360×460), **Medium** (440×640, default) and **Large** (600×860), switched while Nexus runs: the **S / M / L** button in the title bar (cycles), the shortcut, the tray / menu-bar menu (Window Size) or Settings → General. The top edge and the side nearest the screen edge stay put; Large is reduced to fit smaller screens. Dragging the window edge still sets any size. |
+| **Window sizes** | **Small** (360×460), **Medium** (440×640, default) and **Large** (600×860), switched while Nexus runs: the **S / M / L** button in the title bar (cycles), the shortcut, the tray / menu-bar menu (Window Size) or Settings → General. The top edge and the side nearest the screen edge stay put; Large is reduced to fit smaller screens. Dragging the window edge still sets any size. Next to the size button, the **opacity** button (◐) opens a slider (30–100 %) that changes the window as you drag; arrow keys fine-tune it, Escape or a click elsewhere closes it. The same slider sits under Window size in Settings → General. |
 | **Out of recent activity** | On by default (Settings → General, or the menu-bar menu). macOS: Nexus is a menu-bar app (`LSUIElement`), so from the moment it starts it has no Dock icon and is not in the Dock, the Dock's recent apps, Cmd+Tab or the Apple menu's Recent Items (open it from the menu-bar icon or the shortcut). Windows: no taskbar button, and as a tool window (`WS_EX_TOOLWINDOW`) not in Alt+Tab or Task View. Minimise hides the window instead of leaving it in the Dock / taskbar. Resume imports and session exports are not added to recent items, and the app's macOS recent-documents list is cleared at start. Entries the OS recorded earlier (for example from a version before 0.2.4) are left alone. |
 | **Capture exclusion** | `NSWindowSharingNone` on macOS, `WDA_EXCLUDEFROMCAPTURE` on Windows, set by a native addon and **verified by reading the value back**; live status pill. |
 | **Private by design** | API keys are encrypted with the OS key store (Keychain / DPAPI) and never reach the UI process. Everything is stored on this computer; audio, transcripts and screenshots go only to the providers you configure. |
@@ -161,8 +171,8 @@ separate data folder.
 ## Build installers
 
 ```bash
-npm run dist:mac     # → release/Nexus-AI-<version>-mac-<arch>.dmg   (run on a Mac)
-npm run dist:win     # → release/Nexus-AI-Setup-<version>-x64.exe   (run on Windows)
+npm run dist:mac     # → release/Nexus-AI-mac-<arch>.dmg   (run on a Mac)
+npm run dist:win     # → release/Nexus-AI-Setup-x64.exe   (run on Windows)
 ```
 
 The native addon is C++/Objective-C++, so each installer must be built **on its own OS**.

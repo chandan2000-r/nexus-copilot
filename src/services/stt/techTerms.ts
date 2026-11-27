@@ -22,7 +22,8 @@ const FIXES: [RegExp, string][] = [
   [/\bgit[- ]hub\b/gi, 'GitHub'],
   [/\bgit[- ]lab\b/gi, 'GitLab'],
   [/\bci[- /]?cd\b/gi, 'CI/CD'],
-  [/\b(?:cap) theorem\b/gi, 'CAP theorem'],
+  [/\b(?:cap|cat|cab|kept) theorem\b/gi, 'CAP theorem'],
+  [/\b(?:lightness|lightning|likeness|lifeness) (probes?)\b/gi, 'liveness $1'],
   [/\bsolid principle(s?)\b/gi, 'SOLID principle$1'],
   [/\bacid (properties|transactions|compliance)\b/gi, 'ACID $1'],
   [/\brest(?:ful)? api(s?)\b/gi, 'REST API$1']

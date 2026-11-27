@@ -35,7 +35,8 @@ mac:
   # Must stay false while ad-hoc signed: hardened runtime's library validation rejects Electron's framework.
   hardenedRuntime: false
 dmg:
-  artifactName: Nexus-AI-${version}-mac-${arch}.${ext}
+  # No version in the file name, so .../releases/latest/download/<name> is a permanent download link.
+  artifactName: Nexus-AI-mac-${arch}.${ext}
 win:
   target:
     - target: nsis
@@ -47,4 +48,4 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  artifactName: Nexus-AI-Setup-${version}-${arch}.${ext}
+  artifactName: Nexus-AI-Setup-${arch}.${ext}

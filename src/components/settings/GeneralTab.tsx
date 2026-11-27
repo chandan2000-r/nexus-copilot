@@ -88,7 +88,7 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
         <span className="row-text">
           <span className="row-label">Window size</span>
           <span className="row-hint">
-            {settings.windowSize === 'custom' ? 'Resized by dragging. ' : ''}Also from the title bar or the shortcut below.
+            {settings.windowSize === 'custom' ? 'Resized by dragging. ' : ''}Also from the S / M / L button in the title bar or the shortcut below.
           </span>
         </span>
         <span className="size-choice" role="radiogroup" aria-label="Window size">
@@ -106,7 +106,6 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
           ))}
         </span>
       </div>
-      <Toggle label="Always on top" checked={settings.alwaysOnTop} onChange={(v) => update({ alwaysOnTop: v })} />
       <Row label="Opacity">
         <span className="slider">
           <input
@@ -121,6 +120,7 @@ export function GeneralTab({ settings, capture, update }: { settings: Settings; 
           <output>{Math.round(settings.opacity * 100)}%</output>
         </span>
       </Row>
+      <Toggle label="Always on top" checked={settings.alwaysOnTop} onChange={(v) => update({ alwaysOnTop: v })} />
       <Toggle label="Remember position and size" checked={settings.rememberPosition} onChange={(v) => update({ rememberPosition: v })} />
       <Row label="Display">
         <select

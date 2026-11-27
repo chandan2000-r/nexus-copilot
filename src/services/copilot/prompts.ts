@@ -37,22 +37,22 @@ const ROLE: Record<CopilotMode, string> = {
 }
 
 const STYLE: Record<AnswerStyle, string> = {
-  concise: 'Keep it short: 2–4 sentences, or up to 4 short bullets. It must be readable at a glance in about 10 seconds.',
+  concise: 'Keep it short: 2–4 bullets, readable at a glance in about 10 seconds.',
   detailed:
-    'Give a complete, technical answer of about 120–220 words: precise terms, how it works under the hood, the key trade-off or failure mode, and exact commands, configuration or code in fenced code blocks when they help.',
+    'Give a complete, technical answer as 5–8 bullets (about 120–220 words): precise terms, how it works under the hood, the key trade-off or failure mode, and exact commands, configuration or code in fenced code blocks when they help.',
   star:
-    'For behavioural questions use STAR: **Situation**, **Task**, **Action**, **Result**, one or two sentences each, with a measurable result where the profile supports it. For other questions be concise.',
-  bullets: 'Answer only in bullet points: at most 6 bullets, each under 15 words.'
+    'For behavioural questions use STAR as four bullets: **Situation**, **Task**, **Action**, **Result**, one or two sentences each, with a measurable result where the profile supports it. For other questions use 2–4 bullets.',
+  bullets: 'Answer in short bullet points: at most 6 bullets, each under 15 words.'
 }
 
 export function systemPrompt(copilot: CopilotSettings, profile: ProfileSettings): string {
   const parts = [
     'You are Nexus, a real-time conversation copilot. The user reads your output on a small overlay while they are talking, so:',
     '- Put the answer first. No preamble, no "Great question", no restating the question.',
-    '- Use Markdown sparingly: short paragraphs, bullets, **bold** key terms, fenced code blocks for code.',
+    '- Format every answer as Markdown bullet points ("- "), one idea per bullet, with **bold** key terms; no paragraphs. Commands, code and configuration the user would type or paste go in a fenced code block of their own after the bullets, never inside a bullet (inline `code` is fine for names). Only when the user asks for a specific format (an email, a message, a script) use that format instead.',
     `- ${STYLE[copilot.answerStyle]}`,
     '- Be accurate. Use specifics from the user\'s profile below; never invent employers, titles, dates, numbers or credentials that are not in it. If a detail is missing, answer from general experience or leave a short [placeholder] for the user to fill.',
-    '- Technical questions (programming, frameworks, system design, databases, cloud, DevOps, data, ML, networking, security): open with the precise, correct answer in one sentence, then the specifics an expert interviewer listens for: how it works, the key trade-off or when to use it, and a concrete example (from the profile when one fits). Use exact names of technologies, APIs and complexities; no vague filler. Add a short code snippet only when it makes the point faster.',
+    '- Technical questions (programming, frameworks, system design, databases, cloud, DevOps, data, ML, networking, security): make the first bullet the precise, correct answer, then bullets with the specifics an expert interviewer listens for: how it works, the key trade-off or when to use it, and a concrete example (from the profile when one fits). Use exact names of technologies, APIs and complexities; no vague filler. Add a short code snippet only when it makes the point faster.',
     '- The transcript comes from speech recognition and may contain mistakes, especially in technical terms (e.g. "cube control" for kubectl, "post gress" for Postgres); infer the intended words and use the correct terms in your answer.',
     copilot.responseLanguage
       ? `- Always respond in ${copilot.responseLanguage}.`
@@ -101,10 +101,10 @@ export function transcriptBlock(transcript: string): string {
  */
 const ANSWER_SHAPE: Record<AnswerStyle, string> = {
   concise:
-    "Write the user's reply now, as they would say it: the answer in the first sentence, then two or three sentences on how it works, with a concrete example.",
+    "Write the user's reply now as 2 to 4 bullet points, as they would say it: the answer first, then how it works, then a concrete example.",
   detailed:
-    "Write the user's reply now. Open with the direct answer, then explain how it works under the hood (name the exact components, commands, settings or APIs), the key trade-off or failure mode, and a concrete example; put any command, configuration or code in a fenced code block. No labels such as 'Answer:' or 'The answer in one sentence:'.",
-  star: "Write the user's reply now, as they would say it: for a behavioural question a short STAR story; otherwise the answer in the first sentence, then how it works, with a concrete example.",
+    "Write the user's reply now as 5 to 8 Markdown bullet points, one idea each: the first bullet is the direct answer, then how it works under the hood (name the exact components, commands, settings or APIs), the key trade-off or failure mode, and a concrete example. Put any command, configuration or code in a fenced code block after the bullets. No labels such as 'Answer:'.",
+  star: "Write the user's reply now as bullet points, as they would say it: for a behavioural question four bullets, **Situation**, **Task**, **Action** and **Result**; otherwise the answer first, then how it works, then a concrete example.",
   bullets:
     "Write the user's reply now as 3 to 5 short bullet points to glance at while speaking: the answer first, then how it works, then a concrete example. For a question about the user, the points are their own answer in the first person."
 }
@@ -116,10 +116,22 @@ export function wantsCode(question: string): boolean {
   return CODE_REQUEST.test(question)
 }
 
+/** "Draft an email to…", "write a LinkedIn message…": ready-to-send text, not bullets or code. */
+const WRITING_REQUEST =
+  /\b(?:draft|write|compose|prepare|reply|respond)\b[^.?!]*?\b(?:e-?mails?|mails?|messages?|letters?|notes?|repl(?:y|ies)|posts?|cover letters?|thank[- ]you)\b/i
+
+export function wantsWriting(question: string): boolean {
+  return WRITING_REQUEST.test(question)
+}
+
+const WRITING_SHAPE =
+  'Write it now as ready-to-send text in that format: no bullet points and no code block. Use [placeholders] for details you do not know.'
+
 /** Whatever the answer style: bullet points cannot hold the script someone asked for. */
-const CODE_SHAPE = 'Write the code they asked for now, complete and runnable, in a fenced code block, then one or two lines on how it works.'
+const CODE_SHAPE = 'Write the code they asked for now, complete and runnable, in a fenced code block, then one or two bullets on how it works.'
 /** "Give me the kubectl command…": the command itself, not a program that runs it. */
-const COMMAND_SHAPE = 'Give the exact command or commands now in a fenced code block (no script around them), then one line on what each does.'
+const COMMAND_SHAPE =
+  'Give the exact, complete command or commands now (resource type, name and flags, with placeholders such as <name>) in a fenced code block of their own, no script around them, then one bullet per command on what it does. Shape it like this:\n```bash\ndocker logs --tail 100 <container>\n```\n- Shows the last 100 log lines of the container.'
 const COMMAND_REQUEST = /\bcommands?\b/i
 const codeShape = (question: string) => (COMMAND_REQUEST.test(question) ? COMMAND_SHAPE : CODE_SHAPE)
 
@@ -127,17 +139,17 @@ export const ANSWER_MODE_LABELS: Record<AnswerMode, string> = { quick: 'Quick', 
 
 /** Per-answer modes (the answer actions): switch an answer to another length and depth. */
 const MODE_SHAPE: Record<AnswerMode, string> = {
-  quick: "Write the user's reply now in 2 to 4 sentences: the answer first, then the one detail that matters most.",
+  quick: "Write the user's reply now as 2 to 4 short bullet points: the answer first, then the one detail that matters most.",
   interview:
-    "Write the user's reply now as a 30 to 60 second spoken answer in the first person: the answer first, then how it works, then a concrete example (from their own experience when the profile has one).",
+    "Write the user's reply now as 3 to 6 bullet points to say in a 30 to 60 second spoken answer, in the first person: the answer first, then how it works, then a concrete example (from their own experience when the profile has one).",
   detailed:
-    'Write a detailed answer now: the answer first, then how it works step by step, the key trade-offs, and the exact commands, configuration or code in fenced code blocks where they help.'
+    'Write a detailed answer now as Markdown bullet points: the answer first, then how it works step by step (one bullet per step), the key trade-offs, and the exact commands, configuration or code in fenced code blocks after the bullets where they help.'
 }
 const codeModeShape = (question: string, mode: AnswerMode) =>
   mode === 'quick'
-    ? 'Write only the essential code or command they asked for, in a fenced code block, with one line on how it works.'
+    ? 'Write only the essential code or command they asked for, in a fenced code block, with one bullet on how it works.'
     : mode === 'detailed'
-      ? `${codeShape(question)} Then explain each part and how to run it.`
+      ? `${codeShape(question)} Then explain each part and how to run it, one bullet each.`
       : codeShape(question)
 
 /**
@@ -146,7 +158,15 @@ const codeModeShape = (question: string, mode: AnswerMode) =>
  */
 export function answerPrompt(question: string, transcript: string, style: AnswerStyle = 'concise', mode?: AnswerMode): string {
   const code = wantsCode(question)
-  const shape = mode ? (code ? codeModeShape(question, mode) : MODE_SHAPE[mode]) : code ? codeShape(question) : ANSWER_SHAPE[style]
+  const shape = wantsWriting(question)
+    ? WRITING_SHAPE
+    : mode
+      ? code
+        ? codeModeShape(question, mode)
+        : MODE_SHAPE[mode]
+      : code
+        ? codeShape(question)
+        : ANSWER_SHAPE[style]
   // Small local models tend to just repeat a quoted question back; saying what to write stops that.
   return [transcriptBlock(transcript), `"Them" just said: "${question}"\n${shape} Do not repeat the question.`]
     .filter(Boolean)
@@ -166,7 +186,7 @@ export function screenPrompt(instruction: string, transcript: string): string {
     transcriptBlock(transcript),
     'The attached image is a screenshot of the user\'s screen.',
     'If it shows a coding or technical problem, solve it (approach, code in a fenced block, complexity). ' +
-      'If it shows a question, slide, document or error, explain the key points and what the user should say or do next.',
+      'If it shows a question, slide, document or error, give the key points and what the user should say or do next as bullet points.',
     instruction.trim() ? `The user adds: ${instruction.trim()}` : ''
   ]
     .filter(Boolean)
@@ -174,8 +194,9 @@ export function screenPrompt(instruction: string, transcript: string): string {
 }
 
 export function chatPrompt(text: string, transcript: string): string {
-  if (!transcript) return text
-  return `${transcriptBlock(transcript)}\nThe user asks: ${text}`
+  const ask = wantsWriting(text) ? `${text}\n\n${WRITING_SHAPE}` : text
+  if (!transcript) return ask
+  return `${transcriptBlock(transcript)}\nThe user asks: ${ask}`
 }
 
 export interface HistoryItem {
@@ -214,13 +235,38 @@ export function buildMessages(system: string, history: HistoryItem[]): ChatMessa
 }
 
 /**
- * Removes the scaffolding small models copy from the instructions into the answer: a leading
- * "Answer:" / "The precise, correct answer in one sentence:" and lines that are only such a label.
+ * Cleans up what small models get wrong in the answer's form (shown and copied this way):
+ * - the scaffolding they copy from the instructions: a leading "Answer:" / "The precise, correct
+ *   answer in one sentence:" and lines that are only such a label;
+ * - a code block opened inside a bullet ("- ```yaml"), which would otherwise show the code as
+ *   loose paragraphs: the fence moves to its own line;
+ * - whole lines repeated later in the answer (a model stuck in a loop; see RepetitionGuard).
  */
 export function tidyAnswer(text: string): string {
   const label = /(?:\*\*)?(?:answer|the (?:direct |precise(?:, correct)? )?answer(?: in (?:one|the first) sentence)?)\s*:(?:\*\*)?/i
-  return text
+  const cleaned = text
     .replace(new RegExp(`^\\s*${label.source}[ \\t]*\\n?`, 'i'), '')
     .replace(new RegExp(`^[ \\t]*${label.source}[ \\t]*$\\n?`, 'gim'), '')
+    .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(```[\w+#.-]*)[ \t]*$/gm, '$1')
+    .replace(/^[ \t]+(```[\w+#.-]*)[ \t]*$/gm, '$1')
+    // A bullet that is only a shell command ("- `kubectl rollout undo …`"): a code block to copy.
+    .replace(/^[ \t]*[-*+][ \t]+`([a-z][\w.-]*(?: [^`\n]+)+)`[ \t]*$/gm, '```bash\n$1\n```')
+  const seen = new Set<string>()
+  let inCode = false
+  return cleaned
+    .split('\n')
+    .filter((line) => {
+      const body = line.trim().replace(/^(?:[-*•+]|\d+[.)])\s+/, '')
+      if (body.startsWith('```')) {
+        inCode = !inCode
+        return true
+      }
+      if (inCode || body.length < 16) return true
+      const key = body.toLowerCase().replace(/\s+/g, ' ')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .join('\n')
 }
 

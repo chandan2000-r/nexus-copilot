@@ -4,6 +4,10 @@ import type { LlmProviderId, Settings } from '../../shared/settings'
 import { LOCAL_BUDGET_CHARS, trimToBudget } from './contextWindow'
 import { createProvider, type SecretLookup } from './registry'
 import type { ChatMessage } from './types'
+import { RepetitionGuard } from './repetition'
+
+/** Longest answer a model on this computer may write, in bullet points (good answers had up to 11). */
+export const LOCAL_MAX_BULLETS = 15
 
 /** A repeated identical prefill is skipped unless this long has passed (the model may have been unloaded). */
 const PREFILL_REFRESH_MS = 20 * 60_000
@@ -40,9 +44,15 @@ export class AIService {
     try {
       const s = this.settings()
       const provider = createProvider(s.ai.provider, s, this.secret)
+      const loop = new RepetitionGuard(isLocalModel(s.ai) ? LOCAL_MAX_BULLETS : Infinity)
       for await (const delta of provider.chat(fitToModel(s, messages), { signal: controller.signal })) {
         if (controller.signal.aborted) break
         handlers.onDelta(delta)
+        // The model is repeating itself: end the answer here (the repeated lines are not shown).
+        if (loop.push(delta)) {
+          controller.abort()
+          break
+        }
       }
       handlers.onDone()
     } catch (err) {

@@ -23,6 +23,13 @@ export const OLLAMA_NUM_CTX = 8192
  */
 export const OLLAMA_TEMPERATURE = 0.2
 
+/**
+ * Upper bound on one answer from a model on this computer (about 1,100 words, room for a full
+ * script). A detailed bulleted answer is 300–500 tokens; without a bound, an answer that rambles
+ * on could keep an 8 GB Mac busy for minutes at the "Max tokens" setting (4096 by default).
+ */
+export const OLLAMA_MAX_ANSWER_TOKENS = 1536
+
 /** `think` values to try, fastest first; empty = model default. Models that never think accept `false`. */
 export function ollamaThinkValues(model: string, speed: AnswerSpeed = 'fast'): (boolean | string)[] {
   if (speed === 'thorough') return []
@@ -64,7 +71,7 @@ export class OllamaProvider implements AIProvider {
 
   async *chat(messages: ChatMessage[], options: ChatOptions): AsyncIterable<string> {
     const model = await this.modelFor(messages, options.signal)
-    const res = await this.post(model, messages, this.cfg.maxTokens, true, options.signal)
+    const res = await this.post(model, messages, Math.min(this.cfg.maxTokens, OLLAMA_MAX_ANSWER_TOKENS), true, options.signal)
     if (!res.ok || !res.body) throw await this.error(res, model, options.signal)
     for await (const line of readLines(res.body)) {
       if (!line.trim()) continue
