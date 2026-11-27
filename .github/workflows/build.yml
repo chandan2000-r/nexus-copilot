@@ -16,6 +16,9 @@ jobs:
           - os: windows-latest
             script: dist:win
     runs-on: ${{ matrix.os }}
+    # Write access only so a tagged build can attach its installer to the GitHub release.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -39,3 +42,33 @@ jobs:
             release/*.dmg
             release/*.exe
           if-no-files-found: error
+      # Tagged release: attach the Windows installer to the GitHub release as soon as it exists, so
+      # .../releases/latest/download/Nexus-AI-Setup-x64.exe works minutes after publishing. The
+      # release (with the Mac installer that was tested on a Mac) is published right after the tag
+      # is pushed, so wait for it. An installer already attached is never replaced.
+      - name: Attach installer to the release
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.os == 'windows-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          for i in $(seq 1 40); do
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            echo "Waiting for release $TAG ($i/40)"
+            sleep 15
+          done
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::No release $TAG after 10 minutes; the installer is only in the build artifacts."
+            exit 0
+          fi
+          attached=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          for f in release/*.exe; do
+            name=$(basename "$f")
+            if grep -qxF "$name" <<<"$attached"; then
+              echo "$name is already attached; keeping it"
+            else
+              gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY"
+              echo "Attached $name to $TAG"
+            fi
+          done
